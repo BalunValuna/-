@@ -101,3 +101,22 @@ export function badgeTexture() {
     return t;
   });
 }
+
+/** Simple printed label (engine plaque, battery sticker...). */
+export function labelTexture(text, bg = '#eee', fg = '#111') {
+  return once(`label:${text}:${bg}:${fg}`, () => {
+    const c = canvas(512, 224);
+    const g = c.getContext('2d');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, 512, 224);
+    g.fillStyle = fg;
+    g.font = '700 96px sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, 256, 118);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    return t;
+  });
+}

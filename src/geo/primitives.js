@@ -80,6 +80,101 @@ export function tube(points, radius, tubularSegments = 32, radialSegments = 10, 
   return new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, closed);
 }
 
+/**
+ * Sweeps a closed 2D cross-section (array of [u, v], u across, v "up") along a 3D polyline using
+ * parallel-transported frames. `up` seeds the initial frame orientation.
+ */
+export function sweepProfile(points, section, { up = new THREE.Vector3(0, 1, 0), closed = false, caps = true } = {}) {
+  const pts = points.map((p) => (p.isVector3 ? p : new THREE.Vector3(...p)));
+  const n = pts.length;
+  const tangents = pts.map((p, i) => {
+    const a = pts[closed ? (i - 1 + n) % n : Math.max(i - 1, 0)];
+    const b = pts[closed ? (i + 1) % n : Math.min(i + 1, n - 1)];
+    return b.clone().sub(a).normalize();
+  });
+  const normals = [];
+  let prevN = up.clone().addScaledVector(tangents[0], -up.dot(tangents[0])).normalize();
+  if (prevN.lengthSq() < 1e-6) prevN = new THREE.Vector3(1, 0, 0);
+  for (let i = 0; i < n; i++) {
+    const t = tangents[i];
+    const nrm = prevN.clone().addScaledVector(t, -prevN.dot(t)).normalize();
+    normals.push(nrm);
+    prevN = nrm;
+  }
+  const positions = [];
+  const indices = [];
+  const m = section.length;
+  for (let i = 0; i < n; i++) {
+    const t = tangents[i];
+    const v = normals[i];
+    const u = new THREE.Vector3().crossVectors(v, t);
+    for (const [su, sv] of section) {
+      const p = pts[i].clone().addScaledVector(u, su).addScaledVector(v, sv);
+      positions.push(p.x, p.y, p.z);
+    }
+  }
+  const rings = closed ? n : n - 1;
+  for (let i = 0; i < rings; i++) {
+    const i2 = (i + 1) % n;
+    for (let j = 0; j < m; j++) {
+      const j2 = (j + 1) % m;
+      const a = i * m + j;
+      const b = i * m + j2;
+      const c = i2 * m + j2;
+      const d = i2 * m + j;
+      indices.push(a, b, c, a, c, d);
+    }
+  }
+  if (caps && !closed) {
+    for (const [ring, flip] of [
+      [0, true],
+      [n - 1, false],
+    ]) {
+      const base = positions.length / 3;
+      const c = pts[ring];
+      positions.push(c.x, c.y, c.z);
+      for (let j = 0; j < m; j++) {
+        const j2 = (j + 1) % m;
+        if (flip) indices.push(base, ring * m + j, ring * m + j2);
+        else indices.push(base, ring * m + j2, ring * m + j);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setIndex(indices);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Rounded-rectangle cross-section for sweepProfile (width w across, height h). */
+export function roundRectSection(w, h, r = Math.min(w, h) * 0.3, seg = 3) {
+  const out = [];
+  const corners = [
+    [w / 2 - r, h / 2 - r, 0],
+    [-w / 2 + r, h / 2 - r, Math.PI / 2],
+    [-w / 2 + r, -h / 2 + r, Math.PI],
+    [w / 2 - r, -h / 2 + r, (3 * Math.PI) / 2],
+  ];
+  for (const [cx, cy, a0] of corners) {
+    for (let k = 0; k <= seg; k++) {
+      const a = a0 + (k / seg) * (Math.PI / 2);
+      out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+  }
+  return out;
+}
+
+/** Elliptical cross-section. */
+export function ellipseSection(rx, ry, seg = 10) {
+  const out = [];
+  for (let k = 0; k < seg; k++) {
+    const a = (k / seg) * Math.PI * 2;
+    out.push([Math.cos(a) * rx, Math.sin(a) * ry]);
+  }
+  return out;
+}
+
 /** Helical coil spring along +Y. */
 export function coilSpring(radius, wire, height, turns, segmentsPerTurn = 18) {
   const pts = [];

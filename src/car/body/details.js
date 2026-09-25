@@ -3,7 +3,7 @@ import { MeshData } from '../../geo/meshData.js';
 import { clipMesh } from '../../geo/clip.js';
 import { surfaceNets } from '../../geo/surfaceNets.js';
 import { sdRoundBox, sdEllipsoid, smin } from '../../geo/sdf.js';
-import { mesh, roundedBox, tube } from '../../geo/primitives.js';
+import { ellipseSection, mesh, roundedBox, sweepProfile, tube } from '../../geo/primitives.js';
 import { REGIONS, LAYOUT } from './regions.js';
 import { beltY } from './shape.js';
 import { bodyNormal, frontPoint, rearPoint, sidePoint, topPoint, surfaceFrame } from './surface.js';
@@ -103,9 +103,7 @@ export function buildDetails(mats) {
   front.add(mesh(backing.toGeometry(), mats.glossBlack, { name: 'grilleBacking' }));
   for (const y of [0.664, 0.689, 0.714]) {
     const pts = noseLine(-0.33, 0.33, y, 0.016, 20);
-    const g = tube(pts, 0.0055, 40, 8);
-    g.scale(1, 1.5, 0.8);
-    front.add(mesh(g, mats.chrome, { name: 'grilleBar' }));
+    front.add(mesh(sweepProfile(pts, ellipseSection(0.0045, 0.0075, 10)), mats.chrome, { name: 'grilleBar' }));
   }
   front.add(mesh(tube(noseOutline(grillePoly, 0.004), 0.0048, 160, 8, true), mats.chrome, { name: 'grilleSurround' }));
   front.add(badge(mats, frontPoint(0, 0.693), new THREE.Vector3(0, 0, -1), 0.05));
@@ -119,7 +117,7 @@ export function buildDetails(mats) {
   planarUV(intakeGeo, 'xy', 18);
   front.add(mesh(intakeGeo, intakeMat, { name: 'intakeMesh' }));
   const barPts = noseLine(-0.43, 0.43, 0.372, 0.02, 20);
-  front.add(mesh(tube(barPts, 0.008, 40, 8).scale(1, 1.6, 1), mats.glossBlack, { name: 'intakeBar' }));
+  front.add(mesh(sweepProfile(barPts, ellipseSection(0.008, 0.013, 10)), mats.glossBlack, { name: 'intakeBar' }));
   for (const side of [-1, 1]) {
     const pocket = endPatch(
       (x, y, z) => Math.max(REGIONS.fogPocket(x, y, z), -side * x),
@@ -157,11 +155,11 @@ export function buildDetails(mats) {
   }
 
   // ---------------------------------------------------------- plates
-  front.add(plate(mats, frontPoint(0, 0.556), 'front'));
+  front.add(plate(mats, frontPoint(0, 0.556), 'front', new THREE.Vector3(-1, 0, 0)));
   const rp = rearPoint(0, 0.893);
   rear.add(plate(mats, rp, 'rear'));
   const garnish = noseLine(-0.31, 0.31, 0.975, -0.003, 16, true);
-  rear.add(mesh(tube(garnish, 0.007, 32, 8).scale(1, 1.3, 1), mats.chrome, { name: 'trunkGarnish' }));
+  rear.add(mesh(sweepProfile(garnish, ellipseSection(0.005, 0.009, 10)), mats.chrome, { name: 'trunkGarnish' }));
   rear.add(badge(mats, rearPoint(0, 1.035), new THREE.Vector3(0, 0, 1), 0.045));
 
   // exhaust tip under the left of the rear bumper
@@ -189,7 +187,7 @@ export function buildDetails(mats) {
       const p = topPoint(x, z);
       if (p) pts.push(p.add(new THREE.Vector3(0, 0.012, 0)));
     }
-    top.add(mesh(tube(pts, 0.006, 20, 6).scale(1, 0.7, 1), mats.satinBlack, { name: 'wiper' }));
+    top.add(mesh(sweepProfile(pts, ellipseSection(0.007, 0.0045, 8)), mats.satinBlack, { name: 'wiper' }));
     const blade = mesh(tube(pts.slice(1).map((p) => p.clone().add(new THREE.Vector3(0, -0.005, 0.02))), 0.007, 20, 6), mats.rubber, {
       name: 'wiperBlade',
     });
@@ -252,7 +250,7 @@ export function buildDoorDetails(mats, door, side) {
     const p = sidePoint(z, beltY.at(z) + 0.003, side);
     if (p) pts.push(p.addScaledVector(new THREE.Vector3(-side, 0, 0), 0.004));
   }
-  if (pts.length > 3) g.add(mesh(tube(pts, 0.0055, 48, 6).scale(1, 1, 1), mats.seal, { name: 'beltMolding' }));
+  if (pts.length > 3) g.add(mesh(tube(pts, 0.0055, 48, 6), mats.seal, { name: 'beltMolding' }));
 
   if (door === 'front') g.add(buildMirror(mats, side));
   return g;
@@ -304,10 +302,10 @@ function buildMirror(mats, side) {
   return g;
 }
 
-function plate(mats, p, kind) {
+function plate(mats, p, kind, along = new THREE.Vector3(1, 0, 0)) {
   const g = new THREE.Group();
   g.name = `${kind}Plate`;
-  const q = surfaceFrame(p);
+  const q = surfaceFrame(p, along);
   g.position.copy(p).addScaledVector(bodyNormal(p), 0.006);
   g.quaternion.copy(q);
   const frame = mesh(roundedBox(0.535, 0.126, 0.008, 0.004), mats.blackPlastic, { name: 'plateFrame' });

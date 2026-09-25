@@ -10,6 +10,7 @@ function makeShared() {
   const std = (o) => new THREE.MeshStandardMaterial(o);
   const phys = (o) => new THREE.MeshPhysicalMaterial(o);
   return {
+    underbody: std({ color: 0x1c1c1d, roughness: 0.95, metalness: 0.0, normalMap: grainNormal(3), name: 'underbody' }),
     primer: std({ color: 0x6d7074, roughness: 0.62, metalness: 0.15, name: 'primer' }),
     blackPlastic: std({ color: 0x141517, roughness: 0.62, metalness: 0.0, normalMap: grainNormal(6), name: 'blackPlastic' }),
     glossBlack: phys({ color: 0x0b0c0d, roughness: 0.18, metalness: 0.0, clearcoat: 1, clearcoatRoughness: 0.05, name: 'glossBlack' }),
@@ -32,7 +33,7 @@ function makeShared() {
       roughness: 0.02,
       metalness: 0.0,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.34,
       depthWrite: false,
       side: THREE.DoubleSide,
       envMapIntensity: 1.0,
@@ -62,8 +63,8 @@ function makeShared() {
       envMapIntensity: 1.6,
       name: 'lens',
     }),
-    reflector: std({ color: 0xdfe3e8, roughness: 0.12, metalness: 1.0, name: 'reflector' }),
-    lampHousing: std({ color: 0x1a1b1d, roughness: 0.5, metalness: 0.2, name: 'lampHousing' }),
+    reflector: std({ color: 0xdfe3e8, roughness: 0.12, metalness: 1.0, side: THREE.DoubleSide, name: 'reflector' }),
+    lampHousing: std({ color: 0x1a1b1d, roughness: 0.5, metalness: 0.2, side: THREE.DoubleSide, name: 'lampHousing' }),
     tailLens: phys({ color: 0x8a0508, roughness: 0.08, metalness: 0.0, transmission: 0, transparent: true, opacity: 0.88, emissive: 0x000000, name: 'tailLens' }),
     reflectorRed: phys({ color: 0x6a0306, roughness: 0.15, metalness: 0.2, clearcoat: 1, name: 'reflectorRed' }),
     amberLens: phys({ color: 0xd97a10, roughness: 0.08, metalness: 0.0, transparent: true, opacity: 0.85, name: 'amberLens' }),

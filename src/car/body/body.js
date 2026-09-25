@@ -6,6 +6,7 @@ import { loopFrames, triangulateLoop } from '../../geo/loops.js';
 import { beltY } from './shape.js';
 import { LAYOUT } from './regions.js';
 import { buildDetails, buildDoorDetails } from './details.js';
+import { buildTrunkTrim, innerFrame } from './trims.js';
 
 const CUT = GAP / 2 + ROLL;
 const DOOR_STEP = 0.02;
@@ -85,7 +86,21 @@ export function buildBody(mats) {
   };
 
   // ---- body shell and simple panels
-  panel('body', mats.paint, { depth: 0.02 });
+  {
+    // body shell: paint on top, underbody coating on the downward-facing underside
+    const g = group('body');
+    const { outer, inner } = hemPanel(skins.body, { roll: ROLL, depth: 0.02, thickness: 0.0012 });
+    const N = outer.normals;
+    const idx = outer.indices;
+    const split = outer.partition((x, y, z, t) => {
+      const ny = (N[idx[t * 3] * 3 + 1] + N[idx[t * 3 + 1] * 3 + 1] + N[idx[t * 3 + 2] * 3 + 1]) / 3;
+      return y < 0.3 && ny < -0.55 ? 'under' : 'paint';
+    });
+    add(g, split.get('paint'), mats.paint, 'body');
+    add(g, split.get('under'), mats.underbody, 'underbody');
+    add(g, inner, mats.paintInner, 'body_inner');
+    parts.body = g;
+  }
   panel('liner', mats.blackPlastic, { depth: 0.012, thickness: 0.002 }, mats.blackPlastic);
   panel('cowl', mats.blackPlastic, { depth: 0.02, thickness: 0.002 }, mats.blackPlastic);
   panel('frontBumper', mats.paint, { depth: 0.03, thickness: 0.003 }, mats.blackPlastic);
@@ -123,13 +138,18 @@ export function buildBody(mats) {
       add(g, doorInnerPanel(ends, sign), mats.paintInner, `${id}_innerPanel`);
       g.add(buildDoorDetails(mats, door, sign));
       parts[id] = g;
-      add(jambs, doorJamb(skin), mats.paint, `${id}_jamb`);
+      add(jambs, twoSided(doorJamb(skin), 0.0012), mats.paint, `${id}_jamb`);
       const hingeZ = door === 'front' ? -0.8 : LAYOUT.bSeam(0.6) + 0.03;
       const hinge = new THREE.Vector3(sign * 0.8, 0.6, hingeZ);
       pivots[id] = makeHinged(g, hinge, new THREE.Vector3(0, 1, 0), sign * 1.15);
     }
   }
   parts.jambs = jambs;
+
+  // closure inner frames
+  add(hood, innerFrame(skins.hood, { offset: 0.032, band: 0.09, ribs: (x, y, z) => Math.min(Math.abs(x) - 0.035, Math.abs(z + 1.45) - 0.03) }), mats.paintInner, 'hoodFrame');
+  add(trunk, innerFrame(skins.trunk, { offset: 0.028, band: 0.075, ribs: (x) => Math.abs(x) - 0.03 }), mats.paintInner, 'trunkFrame');
+  parts.trunkTrim = buildTrunkTrim(mats);
 
   pivots.hood = makeHinged(hood, new THREE.Vector3(0, 0.955, -1.02), new THREE.Vector3(1, 0, 0), 1.05);
   pivots.trunk = makeHinged(trunk, new THREE.Vector3(0, 1.1, 1.665), new THREE.Vector3(1, 0, 0), -1.1);
@@ -247,30 +267,35 @@ function doorJamb(skin) {
   return md;
 }
 
-/** Lens flush with the body plus a housing box behind it. */
+/** Offsets a strip along its normals and appends the flipped copy (thin two-sided sheet). */
+export function twoSided(md, thickness = 0.001) {
+  const back = md.clone();
+  for (let i = 0; i < back.vertexCount; i++) for (let c = 0; c < 3; c++) back.positions[i * 3 + c] -= back.normals[i * 3 + c] * thickness;
+  back.flip();
+  return md.clone().append(back);
+}
+
+/** Lens flush with the body plus a closed housing box behind it. */
 function lampShell(skin, mats, kind, name, count) {
   const g = new THREE.Group();
   g.name = name;
   const depth = kind === 'headlight' ? 0.12 : 0.08;
-  const lens = skin.clone();
-  const lensMesh = toMesh(lens, kind === 'headlight' ? mats.lens : mats.tailLens, `${name}_lens`, { cast: false });
+  const lensMesh = toMesh(skin, kind === 'headlight' ? mats.lens : mats.tailLens, `${name}_lens`, { cast: false });
   lensMesh.userData.glass = true;
   g.add(lensMesh);
-  count(lens);
-  // housing: side walls along -N and a back bowl
+  count(skin);
+  // side walls: the lens boundary swept straight into the body (both faces)
   const { outer } = hemPanel(skin, { roll: 0.0005, depth, thickness: 0, rollSteps: 1 });
   const walls = new MeshData();
-  walls.append(outer);
-  // keep only the wall strips (drop the lens surface copy)
-  const wallOnly = new MeshData();
-  wallOnly.positions = walls.positions;
-  wallOnly.normals = walls.normals;
-  wallOnly.indices = walls.indices.slice(skin.indices.length);
-  wallOnly.flip();
+  walls.positions = outer.positions;
+  walls.normals = outer.normals;
+  walls.indices = outer.indices.slice(skin.indices.length);
+  const wallMesh = twoSided(walls.compact(), 0.0015);
+  g.add(toMesh(wallMesh, mats.lampHousing, `${name}_housing`));
   const back = skin.clone();
   for (let i = 0; i < back.vertexCount; i++) for (let c = 0; c < 3; c++) back.positions[i * 3 + c] -= back.normals[i * 3 + c] * depth;
-  g.add(toMesh(wallOnly.compact(), mats.lampHousing, `${name}_housing`));
-  g.add(toMesh(back, kind === 'headlight' ? mats.reflector : mats.lampHousing, `${name}_back`));
+  g.add(toMesh(twoSided(back.flip(), 0.0015), kind === 'headlight' ? mats.reflector : mats.lampHousing, `${name}_back`));
+  count(wallMesh);
   count(back);
   return g;
 }

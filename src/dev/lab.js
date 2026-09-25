@@ -77,7 +77,7 @@ function setView(name) {
   camera.near = v.near ?? 0.02;
   camera.updateProjectionMatrix();
   controls.update();
-  if (v.state) model.setState(v.state);
+  model.setState(v.state || '');
   ground.visible = v.ground !== false;
 }
 
@@ -96,6 +96,68 @@ function snap() {
   return renderer.domElement.toDataURL('image/png');
 }
 
+/**
+ * Defect analysis of the current view: renders with back faces in green on a magenta background.
+ *  - green pixels  = the inside of a skin is visible (a hole or a gap opening into the void)
+ *  - enclosed magenta = background seen *through* the car (a see-through hole)
+ * Returns counts and an annotated image (defects in red over a dimmed render).
+ */
+function analyze() {
+  const prevBg = scene.background;
+  const prevGround = ground.visible;
+  setDebug('defects');
+  render();
+  const w = renderer.domElement.width;
+  const h = renderer.domElement.height;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d');
+  g.drawImage(renderer.domElement, 0, 0);
+  const img = g.getImageData(0, 0, w, h);
+  const d = img.data;
+  const isMagenta = (i) => d[i] > 180 && d[i + 2] > 180 && d[i + 1] < 90;
+  const isGreen = (i) => d[i + 1] > 170 && d[i] < 90 && d[i + 2] < 90;
+  // flood fill background from the border; magenta not reached is enclosed
+  const reached = new Uint8Array(w * h);
+  const stack = [];
+  for (let x = 0; x < w; x++) stack.push(x, (h - 1) * w + x);
+  for (let y = 0; y < h; y++) stack.push(y * w, y * w + w - 1);
+  while (stack.length) {
+    const p = stack.pop();
+    if (reached[p] || !isMagenta(p * 4)) continue;
+    reached[p] = 1;
+    const x = p % w;
+    if (x > 0) stack.push(p - 1);
+    if (x < w - 1) stack.push(p + 1);
+    if (p >= w) stack.push(p - w);
+    if (p < w * (h - 1)) stack.push(p + w);
+  }
+  let green = 0;
+  let holes = 0;
+  let body = 0;
+  const out = g.createImageData(w, h);
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    const bg = isMagenta(i);
+    const hole = bg && !reached[p];
+    const back = isGreen(i);
+    if (!bg) body++;
+    if (hole) holes++;
+    if (back) green++;
+    const lum = bg && reached[p] ? 25 : (d[i] + d[i + 1] + d[i + 2]) / 6 + 20;
+    out.data[i] = hole || back ? 255 : lum;
+    out.data[i + 1] = hole ? 0 : back ? 40 : lum;
+    out.data[i + 2] = hole ? 255 : back ? 0 : lum;
+    out.data[i + 3] = 255;
+  }
+  g.putImageData(out, 0, 0);
+  setDebug('none');
+  scene.background = prevBg;
+  ground.visible = prevGround;
+  return { green, holes, body, greenPct: (100 * green) / Math.max(body, 1), image: c.toDataURL('image/png') };
+}
+
 setView(params.get('view') || 'front34');
 if (params.get('state')) model.setState(params.get('state'));
 if (params.get('debug')) setDebug(params.get('debug'));
@@ -110,6 +172,7 @@ window.lab = {
   showAll: () => model.showAll(),
   render,
   snap,
+  analyze,
   model,
   stats: () => ({ buildMs, ...model.stats(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }),
 };

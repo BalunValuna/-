@@ -27,6 +27,8 @@ export class DebugMaterials {
     });
     this.normals = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
     this.wire = new THREE.MeshBasicMaterial({ color: 0x9fd3ff, wireframe: true });
+    // Glass is solid in defect mode, otherwise the background behind it would read as a hole.
+    this.glass = new THREE.MeshBasicMaterial({ color: 0x3fa7c9, side: THREE.DoubleSide });
   }
 
   apply(root, mode) {
@@ -34,7 +36,7 @@ export class DebugMaterials {
       if (!o.isMesh) return;
       if (!this.saved.has(o)) this.saved.set(o, o.material);
       if (!mode || mode === 'none') o.material = this.saved.get(o);
-      else if (mode === 'defects') o.material = o.userData.glass ? this.saved.get(o) : this.defects;
+      else if (mode === 'defects') o.material = o.userData.glass ? this.glass : this.defects;
       else if (mode === 'normals') o.material = this.normals;
       else if (mode === 'wire') o.material = this.wire;
     });
