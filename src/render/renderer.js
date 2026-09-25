@@ -23,7 +23,7 @@ export class Renderer {
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.shadowMap.enabled = true;
-    r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.type = THREE.PCFShadowMap;
     r.domElement.id = 'view';
     document.body.appendChild(r.domElement);
     this.composer = null;
@@ -61,7 +61,8 @@ export class Renderer {
       const target = new THREE.WebGLRenderTarget(size.w, size.h, { type: THREE.HalfFloatType, samples: 4 });
       this.composer = new EffectComposer(r, target);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.w, size.h), 0.35, 0.55, 0.92);
+      // threshold in linear HDR: sunlit sand is ~1-2, lamps and glints are well above 3
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.w, size.h), 0.45, 0.5, 3.2);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
     }

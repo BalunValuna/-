@@ -94,6 +94,12 @@ export class WorldGen {
    * that sample many points along one z should use heightAt with a cached road sample.
    */
   height(x, z) {
+    const h = this.baseHeight(x, z);
+    const pad = this.padAt?.(x, z);
+    return pad ? lerp(h, pad.h, pad.w) : h;
+  }
+
+  baseHeight(x, z) {
     const rx = this.roadX(z);
     const d = Math.abs(x - rx);
     const raw = this.rawHeight(x, z);
@@ -101,7 +107,7 @@ export class WorldGen {
     const ry = this.roadY(z);
     const flat = d < ROAD.totalHalf + 0.5 ? 1 : 1 - smoothstep(ROAD.totalHalf + 0.5, 30, d);
     // slight crown/camber: shoulders a little lower than the centre
-    const crown = -clamp(d / ROAD.totalHalf, 0, 1) ** 2 * 0.08;
+    const crown = -(clamp(d / ROAD.totalHalf, 0, 1) ** 2) * 0.08;
     const ditch = d > ROAD.totalHalf && d < 12 ? -Math.sin(((d - ROAD.totalHalf) / (12 - ROAD.totalHalf)) * Math.PI) * 0.45 : 0;
     return lerp(raw, ry + crown, flat) + ditch * (1 - flat * 0.3);
   }

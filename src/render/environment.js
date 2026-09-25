@@ -63,6 +63,10 @@ export class Environment {
     this.envScene = new THREE.Scene();
     this.envSky = new Sky();
     this.envSky.scale.setScalar(100);
+    // The env map must not contain the sun disk (radiance in the thousands): it would flood every
+    // PBR material with light. The visible sky is only clamped so bloom stays a glow.
+    limitSky(this.envSky.material, { sunDisk: false, max: 3 });
+    limitSky(this.sky.material, { sunDisk: true, max: 2.6 });
     this.envScene.add(this.envSky);
     this.envTarget = null;
     this.envTimer = 0;
@@ -221,7 +225,8 @@ export class Environment {
     const old = this.envTarget;
     this.envTarget = this.pmrem.fromScene(this.envScene, 0, 0.1, 200);
     this.scene.environment = this.envTarget.texture;
-    this.scene.environmentIntensity = lerp(0.05, 1, 1 - this.night) * lerp(1, 0.6, this.cur.cloud);
+    this.baseEnvIntensity = lerp(0.05, 1, 1 - this.night) * lerp(1, 0.6, this.cur.cloud);
+    this.scene.environmentIntensity = this.baseEnvIntensity;
     old?.dispose();
   }
 
@@ -229,6 +234,14 @@ export class Environment {
   get wetness() {
     return this.cur.wet;
   }
+}
+
+function limitSky(material, { sunDisk, max }) {
+  if (material.uniforms.showSunDisc) material.uniforms.showSunDisc.value = sunDisk ? 1 : 0;
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );', `gl_FragColor = vec4( min( texColor, vec3( ${max.toFixed(1)} ) ), 1.0 );`);
+  };
+  material.customProgramCacheKey = () => `sky-${sunDisk}-${max}`;
 }
 
 function makeCloudDome() {

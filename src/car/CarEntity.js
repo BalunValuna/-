@@ -23,7 +23,7 @@ export const SERVICE = {
 };
 
 export class CarEntity {
-  constructor(game, { model, mats, position, yaw = 0, state = null, shadows = false }) {
+  constructor(game, { model, mats, position, yaw = 0, state = null, shadows = false, lights = true }) {
     this.game = game;
     this.model = model;
     this.mats = mats;
@@ -57,7 +57,7 @@ export class CarEntity {
       surfaceAt: (collider, p) => game.surfaceAt(collider, p),
       owner: { kind: 'car', car: this },
     });
-    this.lights = new CarLights(this.root, mats, this.controls, { shadows });
+    this.lights = lights ? new CarLights(this.root, mats, this.controls, { shadows }) : { apply() {}, beams: [{}, {}] };
 
     this.s = {
       fuel: 18,
@@ -288,7 +288,10 @@ export class CarEntity {
     const load = s.running ? v.input.throttle : 0;
     this.enginePower = load * omega * 140 * v.torqueScale;
     this.misfire = misfire;
-    if (v.rpm < 400 && s.running && v.gear !== 1 && v.clutchSlip === 0) this.stall();
+    if (v.stalled) {
+      v.stalled = false;
+      if (s.running) this.stall();
+    }
     if (E) this.odometerStep(dt);
   }
 
@@ -372,8 +375,8 @@ export class CarEntity {
       radio: s.ignition && s.radioOn ? 1 : 0,
       power: s.beams && !s.ignition ? this.power : power,
     });
-    this.lights.beams[0].visible = this.installed('headlight_L');
-    this.lights.beams[1].visible = this.installed('headlight_R');
+    if (!this.installed('headlight_L') && this.lights.beams[0].isLight) this.lights.beams[0].intensity = 0;
+    if (!this.installed('headlight_R') && this.lights.beams[1].isLight) this.lights.beams[1].intensity = 0;
   }
 
   domeLit() {

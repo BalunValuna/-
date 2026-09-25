@@ -15,7 +15,8 @@ export const GROUP = {
 };
 
 /** Packs membership and filter into Rapier's 32-bit interaction groups. */
-export const groups = (member, filter = 0xffff) => ((member & 0xffff) << 16) | (filter & 0xffff);
+// `>>> 0` keeps the packed value unsigned: with the top bit set a signed int matches nothing.
+export const groups = (member, filter = 0xffff) => ((((member & 0xffff) << 16) | (filter & 0xffff)) >>> 0);
 
 export const ALL = 0xffff;
 

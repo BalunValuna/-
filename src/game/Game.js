@@ -4,11 +4,12 @@ import { Renderer } from '../render/renderer.js';
 import { Environment } from '../render/environment.js';
 import { Input } from '../core/input.js';
 import { settings } from '../core/settings.js';
-import { t } from '../core/i18n.js';
+import { t, tr } from '../core/i18n.js';
 import { clamp, clamp01 } from '../core/math.js';
 import { AudioSystem } from '../audio/audio.js';
 import { buildCarModel } from '../car/model.js';
 import { carMaterials } from '../car/materials.js';
+import { cloneCarModel } from '../car/cloneModel.js';
 import { CarEntity, SEATS } from '../car/CarEntity.js';
 import { Player } from '../player/Player.js';
 import { Hands } from '../player/Hands.js';
@@ -86,13 +87,23 @@ export class Game {
     await frame();
     ui.loading(t('load.car'), 0.2);
     await frame();
+    // every car in the world is a clone of one pristine prototype (shared geometry)
+    this.protoMats = carMaterials(0x7d1a20);
+    this.carProto = buildCarModel(this.protoMats);
     this.carMats = carMaterials(0x7d1a20);
-    this.carModel = buildCarModel(this.carMats);
+    this.carModel = cloneCarModel(this.carProto, this.protoMats, this.carMats);
     ui.loading(t('load.world'), 0.7);
     await frame();
     this.env = new Environment(this.gfx.renderer, this.scene, { seed: 1 });
     this.env.secondsPerHour = (settings.get('dayLength') * 60) / 24;
     this.env.onThunder = (d) => this.audio.play('thunder', { volume: clamp01(1 - d / 3000) });
+    // Fixed pool of world lamps: light *counts* never change at runtime, so shaders never
+    // recompile when buildings stream in or lights switch.
+    this.lampPool = Array.from({ length: 3 }, () => {
+      const l = new THREE.PointLight(0xffffff, 0, 10, 1.6);
+      this.scene.add(l);
+      return l;
+    });
     this.hands = new Hands();
     this.viewScene.add(this.camera.clone());
     this.viewLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -103,9 +114,11 @@ export class Game {
     this.viewRoot.add(this.hands.view);
     this.viewScene.add(this.viewRoot);
     this.setupWorld(Number(this.saves.peek()?.seed) || 20130512, { menu: true });
-    ui.loading(t('load.done'), 1);
+    ui.loading(t('load.done'), 0.95);
     await frame();
     this.enterMenu();
+    this.menuFrame(0);
+    await this.precompile();
     requestAnimationFrame((t) => this.loop(t));
   }
 
@@ -171,7 +184,7 @@ export class Game {
     this.env.setWeather('clear', 0.01);
     this.car.s.beams = 0;
     this.car.s.ignition = false;
-    this.startPlay();
+    await this.startPlay();
   }
 
   async loadGame(data) {
@@ -185,10 +198,14 @@ export class Game {
     this.env.day = data.env.day;
     this.env.frozenWeather = false;
     this.env.setWeather(data.env.weather || 'clear', 0.01);
-    this.startPlay();
+    await this.startPlay();
   }
 
-  startPlay() {
+  async startPlay() {
+    this.ui.loading(t('load.done'), 0.95);
+    this.player.updateCamera(0);
+    this.env.update(0, this.camera.position);
+    await this.precompile();
     this.state = 'play';
     this.audio.stopMenuMusic?.();
     this.ui.showHud();
@@ -224,6 +241,33 @@ export class Game {
     this.player.seat && this.player.standUp();
     this.setupWorld(this.seed, { menu: true });
     this.enterMenu();
+  }
+
+  /** Sleep in a bed: fade out, skip to morning (or a few hours), wake rested. */
+  sleep() {
+    const p = this.player;
+    const env = this.env;
+    if (p.stats.energy > 80 && env.night < 0.5) {
+      this.ui.toast(tr(['Спать пока не хочется', 'You are not tired yet']));
+      return;
+    }
+    if (this.sleeping) return;
+    this.sleeping = true;
+    this.ui.fade(true);
+    this.audio.play('sleep');
+    setTimeout(() => {
+      const wake = 6.5;
+      const hours = env.night > 0.5 ? (wake - env.time + 24) % 24 : 3;
+      env.time += hours;
+      if (env.time >= 24) {
+        env.time -= 24;
+        env.day++;
+      }
+      p.tickStats(hours * 0.45, this.difficulty);
+      p.stats.energy = 100;
+      this.ui.fade(false);
+      this.sleeping = false;
+    }, 1400);
   }
 
   onPlayerDeath(cause) {
@@ -387,11 +431,18 @@ export class Game {
     this.car.syncVisual();
     player.move(dt, input, { frozen: !!this.ui.modal });
     player.updateCamera(dt);
+    if (this.debugCam) {
+      // dev/screenshot hook: a free camera that ignores the player
+      this.camera.position.copy(this.debugCam.pos);
+      this.camera.lookAt(this.debugCam.target);
+    }
     this.interaction.update(dt);
     this.hands.update(dt, { moving: player.moving, speed: player.speed, look: player.lastLook });
 
     const hours = (dt / this.env.secondsPerHour) * (this.env.timeScale ?? 1);
     this.env.update(dt, this.camera.position);
+    this.applyInterior(dt);
+    this.updateLampPool();
     player.tickStats(hours, this.difficulty);
     this.world.update(dt, this.camera.position);
     this.items.update(dt);
@@ -410,6 +461,46 @@ export class Game {
     this.gfx.render(this.viewScene);
   }
 
+  updateLampPool() {
+    const lamps = this.world.lampsNear(this.camera.position, this.lampPool.length);
+    this.lampPool.forEach((l, i) => {
+      const src = lamps[i];
+      if (!src) {
+        l.intensity = 0;
+        return;
+      }
+      l.position.copy(src.pos);
+      l.color.set(src.color);
+      l.distance = src.distance;
+      l.intensity = src.intensity;
+    });
+  }
+
+  /** Compiles every material in view during loading instead of stalling the first frames. */
+  async precompile() {
+    const r = this.gfx.renderer;
+    try {
+      await r.compileAsync(this.scene, this.camera);
+      await r.compileAsync(this.viewScene, this.camera);
+    } catch (e) {
+      console.warn('precompile', e);
+    }
+  }
+
+  /** Inside buildings the sky light is mostly blocked: dim ambient and reflections smoothly. */
+  applyInterior(dt) {
+    this.interiorT = this.interiorT ?? 0;
+    this.interiorCheck = (this.interiorCheck ?? 0) - dt;
+    if (this.interiorCheck <= 0) {
+      this.interiorCheck = 0.25;
+      this.inside = this.world.insideBuilding(this.camera.position);
+    }
+    this.interiorT += ((this.inside ? 1 : 0) - this.interiorT) * Math.min(1, dt * 3);
+    const k = this.interiorT;
+    this.env.hemi.intensity *= 1 - 0.55 * k;
+    this.scene.environmentIntensity = (this.env.baseEnvIntensity ?? 1) * (1 - 0.45 * k);
+  }
+
   stepPhysics(dt, playing) {
     this.acc += dt;
     let n = 0;
@@ -425,6 +516,7 @@ export class Game {
         });
       } else this.car.idleInputs();
       this.car.physicsStep(STEP);
+      this.world?.wrecks.physicsStep(STEP);
       this.interaction?.physicsStep(STEP);
       this.creatures?.physicsStep?.(STEP);
       this.physics.step(STEP);

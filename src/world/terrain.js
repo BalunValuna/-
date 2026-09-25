@@ -39,14 +39,20 @@ export class Terrain {
     const g = this.gen;
     const rx = g.roadX(z);
     const ry = g.roadY(z);
-    return (x) => {
+    const base = (x) => {
       const d = Math.abs(x - rx);
       const raw = g.rawHeight(x, z);
       if (d > 30) return raw;
       const flat = d < ROAD.totalHalf + 0.5 ? 1 : 1 - smoothstep(ROAD.totalHalf + 0.5, 30, d);
-      const crown = -clamp(d / ROAD.totalHalf, 0, 1) ** 2 * 0.08;
+      const crown = -(clamp(d / ROAD.totalHalf, 0, 1) ** 2) * 0.08;
       const ditch = d > ROAD.totalHalf && d < 12 ? -Math.sin(((d - ROAD.totalHalf) / (12 - ROAD.totalHalf)) * Math.PI) * 0.45 : 0;
       return raw + (ry + crown - raw) * flat + ditch * (1 - flat * 0.3);
+    };
+    // building plots are levelled (same rule as WorldGen.height)
+    return (x) => {
+      const h = base(x);
+      const pad = g.padAt?.(x, z);
+      return pad ? h + (pad.h - h) * pad.w : h;
     };
   }
 
@@ -244,7 +250,7 @@ export class Terrain {
       const nz = -p.dx / nlen;
       for (let k = 0; k < across.length; k++) {
         const a = across[k];
-        const crown = -clamp(Math.abs(a) / ROAD.totalHalf, 0, 1) ** 2 * 0.08;
+        const crown = -(clamp(Math.abs(a) / ROAD.totalHalf, 0, 1) ** 2) * 0.08;
         pos.push(p.rx + nx * a - this.origin.x, p.ry + crown + 0.035, p.z + nz * a - this.origin.z);
         uv.push((a + ROAD.totalHalf) / (2 * ROAD.totalHalf), p.z / 12);
       }
@@ -293,6 +299,11 @@ export class Terrain {
         c.road.position.z -= dz;
       }
     }
+  }
+
+  dispose() {
+    for (const [k, c] of [...this.chunks]) this.disposeChunk(k, c);
+    this.scene.remove(this.group);
   }
 
   /** Ground height at a local-space point (uses the generator, exact). */

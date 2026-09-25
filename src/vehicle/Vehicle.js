@@ -380,15 +380,22 @@ export class Vehicle {
     }
   }
 
+  /** Engine rpm the driven wheels would impose in a given gear. */
+  wheelRpmFor(gear) {
+    const G = SPEC.gearbox;
+    const driven = this.wheels.filter((w) => w.driven && w.present);
+    if (!driven.length) return 0;
+    const omega = driven.reduce((s, w) => s + w.omega, 0) / driven.length;
+    return Math.abs(omega * G.ratios[gear] * G.final) * (60 / (2 * Math.PI));
+  }
+
   updateGearbox(dt) {
     this.shiftT = Math.max(0, this.shiftT - dt);
     if (!this.automatic) return;
     const thr = this.input.throttle;
     const speed = this.speed;
     const wantBack = this.input.reverseRequest;
-    if (this.gear <= 1) {
-      if (thr > 0.05 && speed > -1) this.gear = 2;
-    }
+    if (this.gear <= 1 && thr > 0.05 && speed > -1 && !wantBack) this.gear = 2;
     if (wantBack && Math.abs(speed) < 1) {
       this.reverseHold += dt;
       if (this.reverseHold > 0.25 && this.gear !== 0) {
@@ -398,11 +405,13 @@ export class Vehicle {
     } else this.reverseHold = 0;
     if (this.gear === 0 && thr > 0.05 && speed > -1 && !wantBack) this.gear = 2;
     if (this.gear < 2 || this.shiftT > 0) return;
-    const up = 2300 + 3600 * thr;
-    const down = 1250 + 1500 * thr;
+    // decisions from wheel speed, never from a free-revving engine
     const n = SPEC.gearbox.ratios.length;
-    if (this.rpm > up && this.gear < n - 1) this.shift(1);
-    else if (this.rpm < down && this.gear > 2) this.shift(-1);
+    const rpm = this.wheelRpmFor(this.gear);
+    const up = 2300 + 3500 * thr;
+    const down = 1150 + 1600 * thr;
+    if (rpm > up && this.gear < n - 1 && this.wheelRpmFor(this.gear + 1) > 1300) this.shift(1);
+    else if (rpm < down && this.gear > 2 && this.wheelRpmFor(this.gear - 1) < SPEC.engine.redline * 0.9) this.shift(-1);
   }
 
   /** Engine and clutch: returns total torque at the driven axle and the reflected inertia. */
@@ -411,44 +420,47 @@ export class Vehicle {
     const G = SPEC.gearbox;
     const ratio = G.ratios[this.gear] * G.final;
     const driven = this.wheels.filter((w) => w.driven && w.present);
-    const omegaAxle = driven.length ? driven.reduce((s, w) => s + w.omega, 0) / driven.length : 0;
-    const wheelRpm = Math.abs(omegaAxle * ratio) * (60 / (2 * Math.PI));
+    const wheelRpm = this.wheelRpmFor(this.gear);
     const thr = this.engineOn ? this.input.throttle : 0;
     const friction = E.friction + E.frictionPerRpm * this.rpm;
     const available = this.engineOn ? curve(E.curve, this.rpm) * this.torqueScale : 0;
     const limiter = this.rpm > E.limiter ? 0 : 1;
-    const inGear = this.gear !== 1 && this.shiftT <= 0 && driven.length > 0;
+    const neutral = this.gear === 1 || driven.length === 0;
     let torque = 0;
     let reflected = 0;
-    if (!inGear) {
-      // free revving engine
+    if (this.shiftT > 0 && !neutral) {
+      // shifting: clutch open, throttle cut, engine rev-matches the new gear
+      const target = Math.max(wheelRpm, this.engineOn ? E.idle : 0);
+      this.rpm += (target - this.rpm) * Math.min(1, dt * 12);
+      this.clutchSlip = 1;
+    } else if (neutral) {
       const net = available * thr * limiter - friction;
       this.rpm += ((net / E.inertia) * dt * 60) / (2 * Math.PI);
-      if (this.engineOn) this.rpm = Math.max(this.rpm, E.idle * 0.97 + thr * 0);
+      if (this.engineOn) this.rpm = Math.max(this.rpm, E.idle * 0.97);
       this.clutchSlip = 1;
     } else {
+      const launchGear = this.gear === 0 || this.gear === 2;
       const launch = E.idle + thr * 2300;
-      if (this.engineOn && wheelRpm < launch && wheelRpm < E.idle * 1.6) {
-        // clutch slipping: engine held near the launch rpm, torque passed through the clutch
+      if (this.engineOn && launchGear && wheelRpm < launch && wheelRpm < E.idle * 1.8) {
+        // pulling away: the clutch slips, the engine is held near the launch rpm
         this.rpm += (launch - this.rpm) * Math.min(1, dt * 8);
         const creep = this.automatic ? 0.12 : 0.03;
-        const engage = Math.max(thr, creep);
-        torque = available * engage * limiter * (this.gear === 0 ? 1 : 1);
+        torque = available * Math.max(thr, creep) * limiter;
         this.clutchSlip = 1 - wheelRpm / Math.max(launch, 1);
-        reflected = 0;
       } else {
         this.rpm = Math.max(wheelRpm, this.engineOn ? E.idle * 0.95 : 0);
         const brake = (friction + (1 - thr) * 18) * (this.rpm > 200 ? 1 : 0);
         torque = available * thr * limiter - brake;
         this.clutchSlip = 0;
         reflected = E.inertia * ratio * ratio;
+        // an automatic never lugs below idle: it would have downshifted; a manual stalls
+        if (this.engineOn && wheelRpm < E.idle * 0.6 && !this.automatic) this.stalled = true;
       }
       torque *= ratio * G.efficiency;
-      // torque acts against the direction of travel in reverse
     }
-    if (!this.engineOn) this.rpm = Math.max(0, this.rpm - dt * 2500) * (inGear ? 1 : 1);
+    if (!this.engineOn) this.rpm = Math.max(0, this.rpm - dt * 2500);
     this.rpm = clamp(this.rpm, 0, E.limiter + 150);
-    return { torque: this.engineOn || inGear ? torque : 0, reflectedInertia: reflected };
+    return { torque: this.shiftT > 0 ? 0 : torque, reflectedInertia: reflected };
   }
 
   /** Car-space hub position of a wheel for the visuals. */

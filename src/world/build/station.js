@@ -35,13 +35,10 @@ export function buildStation(ctx, rng) {
   const white = M.paint(0xe8e6e0, 0.5);
   for (const x of [-5, 5]) for (const z of [2.2, 6.8]) b.box(x, y0 + 2.4, z, 0.35, 4.8, 0.35, white, { collide: true, surface: 'concrete' });
   b.box(0, y0 + 5.0, 4.5, 13, 0.5, 7.2, { py: M.metal(0x6a6e70, 0.6), ny: white, px: brand, nx: brand, pz: brand, nz: brand });
-  const canopyLights = [];
+  const lamps = [];
   for (const x of [-3, 3]) {
     b.box(x, y0 + 4.74, 4.5, 1.6, 0.03, 0.4, M.emissive(0xf0f4ff, 0.2));
-    const l = new THREE.PointLight(0xe8f0ff, 0, 14, 1.6);
-    l.position.set(x, y0 + 4.5, 4.5);
-    group.add(l);
-    canopyLights.push(l);
+    lamps.push({ local: new THREE.Vector3(x, y0 + 4.5, 4.5), color: 0xe8f0ff, intensity: 3, distance: 14, on: false });
   }
   // pump islands
   const pumps = [];
@@ -109,7 +106,7 @@ export function buildStation(ctx, rng) {
     floorY: y0,
     pumps,
     tap: new THREE.Vector3(sx1 + 0.3, fy + 0.72, -4),
-    lights: canopyLights,
+    lamps,
     bounds: { x0: sx0, z0: sz0, x1: sx1, z1: sz1, y0: fy, y1: fy + Hs },
   };
 }

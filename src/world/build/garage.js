@@ -165,10 +165,8 @@ export function buildGarage(ctx, rng, { home = false } = {}) {
     new RollDoor(ctx.game, group, { w: doorW - 0.06, h: doorH, at: new THREE.Vector3(0, y0, D / 2 - 0.02), mat: M.metal(home ? 0x8a8a7a : 0x6a7a6a, 0.6), open: home ? 0 : 1 }),
     new Door(ctx.game, group, { w: 0.84, h: 2.02, t: 0.045, at: new THREE.Vector3(-W / 2, y0, D / 2 - 2.0), rotY: Math.PI / 2, hinge: 'right', mat: M.metal(0x4a5a5a, 0.5), open: 0 }),
   ];
-  // lamp for night (switchable)
-  const bulbLight = new THREE.PointLight(0xffdcae, 0, 9, 1.6);
-  bulbLight.position.set(0, y0 + H - 0.6, 0.4);
-  group.add(bulbLight);
+  // ceiling lamp: a light *source*; the game's fixed lamp pool lights the nearest ones
+  const lamp = { local: new THREE.Vector3(0, y0 + H - 0.6, 0.4), color: 0xffdcae, intensity: 2.2, distance: 9, on: false };
   return {
     group,
     builder: b,
@@ -179,7 +177,7 @@ export function buildGarage(ctx, rng, { home = false } = {}) {
     bounds: { x0: -W / 2, z0: -D / 2, x1: W / 2, z1: D / 2, y0, y1: y0 + H },
     carSpot: new THREE.Vector3(0.3, y0, 0.4),
     bench: bench.loot.map((l) => new THREE.Vector3(...l.pos).add(new THREE.Vector3(-0.6, y0, -D / 2 + 0.5))),
-    light: bulbLight,
+    lamps: [lamp],
     // floor spots for parts in a bare-frame start
     partSpots: [
       [-2.6, 2.6, 0.2],
