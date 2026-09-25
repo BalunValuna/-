@@ -1,43 +1,61 @@
 import * as THREE from 'three';
-import { surfaceNets } from '../geo/surfaceNets.js';
-import { bodyField, BODY_BOUNDS } from '../car/body/shape.js';
+import { buildBody, setHinge } from '../car/body/body.js';
 import { buildWheel } from '../car/parts/wheel.js';
 import { carMaterials } from '../car/materials.js';
 import { CAR, WHEELS } from '../car/design.js';
 
 /**
- * Temporary lab model: the raw body skin. Replaced by the full car assembly once parts exist.
+ * Lab model: the car assembled from its procedural parts, with named groups the critic can
+ * toggle and hinged closures it can open.
  */
 export function buildLabModel() {
   const root = new THREE.Group();
-  const t0 = performance.now();
-  const skin = surfaceNets(bodyField, { ...BODY_BOUNDS, cell: 0.02 });
-  const ms = performance.now() - t0;
-  const paint = new THREE.MeshPhysicalMaterial({
-    color: 0x8a1c22,
-    metalness: 0.45,
-    roughness: 0.38,
-    clearcoat: 1,
-    clearcoatRoughness: 0.06,
-  });
-  const mesh = new THREE.Mesh(skin.toGeometry(), paint);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.name = 'body';
-  root.add(mesh);
-  const mats = carMaterials(0x8a1c22);
+  const mats = carMaterials(0x7d1a20);
+  const body = buildBody(mats);
+  const groups = {};
+  for (const [id, obj] of Object.entries(body.parts)) {
+    const top = body.pivots[id] || obj;
+    root.add(top);
+    groups[id] = top;
+  }
   for (const [id, w] of Object.entries(WHEELS)) {
     const wheel = buildWheel(mats);
     wheel.root.position.set(w.x, CAR.wheelY, w.z);
     if (w.left) wheel.root.rotation.y = Math.PI;
     wheel.root.name = `wheel_${id}`;
     root.add(wheel.root);
+    groups[`wheel_${id}`] = wheel.root;
   }
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = o.castShadow && !o.userData.glass;
+    }
+  });
+
+  function setState(state) {
+    const open = new Set(String(state || '').split(',').filter(Boolean));
+    const all = open.has('all');
+    for (const [id, pivot] of Object.entries(body.pivots)) {
+      let amount = 0;
+      if ((all || open.has('hood')) && id === 'hood') amount = 1;
+      if ((all || open.has('trunk')) && id === 'trunk') amount = 1;
+      if ((all || open.has('doors')) && id.includes('Door_')) amount = 1;
+      if ((all || open.has('fuel')) && id === 'fuelDoor') amount = 1;
+      setHinge(pivot, amount);
+    }
+  }
+
+  function showOnly(list) {
+    const want = new Set(list);
+    for (const [id, g] of Object.entries(groups)) g.visible = [...want].some((w) => id === w || id.startsWith(w));
+  }
+
   return {
     root,
-    setState() {},
-    showOnly() {},
-    showAll() {},
-    stats: () => ({ skinMs: Math.round(ms), triangles: skin.triangleCount, vertices: skin.vertexCount }),
+    groups,
+    setState,
+    showOnly,
+    showAll: () => Object.values(groups).forEach((g) => (g.visible = true)),
+    stats: () => body.stats,
   };
 }

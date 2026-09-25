@@ -13,6 +13,8 @@ import { DebugMaterials } from './debugMaterials.js';
  *   parts=...    visible part groups         clip=x:0.1                 section plane
  */
 const params = new URLSearchParams(location.search);
+addEventListener('error', (e) => (window.__labError = `${e.message} @ ${e.filename}:${e.lineno}`));
+addEventListener('unhandledrejection', (e) => (window.__labError = String(e.reason?.stack || e.reason)));
 const fixedW = Number(params.get('w')) || 0;
 const fixedH = Number(params.get('h')) || 0;
 

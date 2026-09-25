@@ -170,6 +170,37 @@ export class MeshData {
     return this;
   }
 
+  /**
+   * Splits triangles into groups by `classify(cx, cy, cz, triIndex) → key`; returns Map<key, MeshData>.
+   * Vertices are duplicated per group so each result is self-contained.
+   */
+  partition(classify) {
+    const groups = new Map();
+    const P = this.positions;
+    const idx = this.indices;
+    for (let t = 0; t < idx.length; t += 3) {
+      const a = idx[t] * 3;
+      const b = idx[t + 1] * 3;
+      const c = idx[t + 2] * 3;
+      const key = classify((P[a] + P[b] + P[c]) / 3, (P[a + 1] + P[b + 1] + P[c + 1]) / 3, (P[a + 2] + P[b + 2] + P[c + 2]) / 3, t / 3);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    const out = new Map();
+    for (const [key, tris] of groups) {
+      const m = new MeshData();
+      m.positions = this.positions;
+      m.normals = this.normals;
+      m.indices = tris;
+      const c = new MeshData();
+      c.positions = m.positions.slice();
+      c.normals = m.normals.slice();
+      c.indices = tris.slice();
+      out.set(key, c.compact());
+    }
+    return out;
+  }
+
   bounds() {
     const box = new THREE.Box3();
     const v = new THREE.Vector3();

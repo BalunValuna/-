@@ -23,7 +23,18 @@ page.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`));
 const query = new URLSearchParams({ w, h, static: 1, ...(args.debug ? { debug: args.debug } : {}) });
 if (args.query) for (const [k, v] of new URLSearchParams(args.query)) query.set(k, v);
 await page.goto(`${base}?${query}`);
-await page.waitForFunction(() => window.__labReady === true, null, { timeout: 240000 });
+try {
+  await page.waitForFunction(() => window.__labReady === true || window.__labError, null, { timeout: 240000 });
+} catch (e) {
+  console.log('lab not ready:', e.message.split('\n')[0]);
+}
+const failure = await page.evaluate(() => window.__labError || null);
+if (failure || !(await page.evaluate(() => window.__labReady === true))) {
+  console.log(logs.join('\n'));
+  console.log('lab error:', failure);
+  await browser.close();
+  process.exit(1);
+}
 const views = (args.views || 'front34').split(',');
 const stats = await page.evaluate(() => window.lab.stats());
 const shots = [];
