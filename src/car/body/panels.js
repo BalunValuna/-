@@ -3,7 +3,8 @@ import { surfaceNets, projectToSurface } from '../../geo/surfaceNets.js';
 import { clipMesh } from '../../geo/clip.js';
 import { hemPanel } from '../../geo/hem.js';
 import { MeshData, boundaryLoops } from '../../geo/meshData.js';
-import { bodyField, BODY_BOUNDS, lowerBodyField } from './shape.js';
+import { BODY_BOUNDS, lowerBodyField, outerField, wheelHouseField } from './shape.js';
+import { CAR } from '../design.js';
 import { REGIONS, onSide } from './regions.js';
 
 /** Physical gap between neighbouring parts and the radius of their rolled edges. */
@@ -13,7 +14,8 @@ const CUT = GAP / 2 + ROLL;
 /** Glass runs this far under the surrounding body edge. */
 const GLASS_UNDERLAP = 0.012;
 
-const snap = (p, n) => projectToSurface(bodyField, p, n, { iterations: 3, h: 4e-4, maxStep: 0.01 });
+const snap = (p, n) => projectToSurface(outerField, p, n, { iterations: 3, h: 4e-4, maxStep: 0.01 });
+const tubSnap = (p, n) => projectToSurface(wheelHouseField, p, n, { iterations: 3, h: 4e-4, maxStep: 0.01 });
 
 export const SIDES = [
   ['L', -1],
@@ -27,9 +29,11 @@ export const SIDES = [
  */
 export function cutSkin({ cell = 0.024 } = {}) {
   const t0 = performance.now();
-  const skin = surfaceNets(bodyField, { ...BODY_BOUNDS, cell });
+  const skin = surfaceNets(outerField, { ...BODY_BOUNDS, cell });
   const cellMs = performance.now() - t0;
-  let rest = skin;
+  // Wheel arches are cut exactly (a meshed crease would staircase); every panel that borders an
+  // arch then gets the same rolled lip as its other edges.
+  let rest = clipMesh(skin, (x, y, z) => -wheelHouseField(x, y, z), { snap });
   const skins = {};
 
   const take = (id, region, mode = 'panel') => {
@@ -41,7 +45,6 @@ export function cutSkin({ cell = 0.024 } = {}) {
   take('windshield', REGIONS.windshield, 'glass');
   take('rearWindow', REGIONS.rearWindow, 'glass');
   for (const [s, sign] of SIDES) take(`quarterGlass_${s}`, onSide(REGIONS.quarterGlass, sign), 'glass');
-  take('liner', (x, y, z) => lowerBodyField(x, y, z) + 0.016);
   for (const [s, sign] of SIDES) take(`headlight_${s}`, onSide(REGIONS.headlight, sign));
   for (const [s, sign] of SIDES) take(`taillight_${s}`, onSide(REGIONS.taillight, sign));
   take('hood', REGIONS.hood);
@@ -80,7 +83,25 @@ export function cutSkin({ cell = 0.024 } = {}) {
       skins[id] = clipMesh(skins[id], (x, y, z) => CUT - region(x, y, z), { snap });
     }
   }
+  skins.liner = wheelLiners();
   return { skins, cellMs };
+}
+
+/** Wheel-house tubs: the arch cavity surface inside the body, facing the wheels. */
+function wheelLiners(cell = 0.02) {
+  const R = CAR.archRadius + 0.06;
+  const out = new MeshData();
+  for (const za of [CAR.axleF, CAR.axleR]) {
+    for (const [, side] of SIDES) {
+      const x0 = side < 0 ? -0.96 : 0.44;
+      const bounds = { min: [x0, CAR.wheelY - R, za - R], max: [x0 + 0.52, CAR.wheelY + R, za + R] };
+      const tub = clipMesh(surfaceNets(wheelHouseField, { ...bounds, cell }), (x, y, z) => lowerBodyField(x, y, z) + 0.004, {
+        snap: tubSnap,
+      });
+      out.append(tub.flip());
+    }
+  }
+  return out;
 }
 
 /** Lateral flange direction for doors and their jambs (towards the car centre). */

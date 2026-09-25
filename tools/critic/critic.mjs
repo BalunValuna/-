@@ -55,24 +55,29 @@ const defectImgs = [];
 for (const v of checkViews) {
   const r = await page.evaluate((name) => {
     window.lab.setView(name);
-    return window.lab.analyze();
+    return { ...window.lab.analyze(), sources: window.lab.defectSources(8) };
   }, v);
   save(`defects-${v}.png`, r.image);
   defectImgs.push(r.image);
-  results.push({ view: v, green: r.green, greenPct: +r.greenPct.toFixed(3), holes: r.holes });
+  const solidPct = (100 * r.sources.total) / Math.max(r.body, 1);
+  results.push({ view: v, green: r.green, solid: r.sources.total, solidPct: +solidPct.toFixed(3), holes: r.holes, sources: r.sources.top });
 }
 if (defectImgs.length) save('defects.png', await composeSheet(page, defectImgs, checkViews, 3, 0.5));
 
-const GREEN_LIMIT = 0.05; // % of car pixels
+// Verdict uses *solid* back-face pixels (all MSAA samples on a back face). Partially covered edge
+// pixels (sub-pixel slivers along silhouettes and 3 mm shut lines) are reported but not judged.
+const SOLID_LIMIT = 0.02; // % of car pixels
 const HOLE_LIMIT = 20; // pixels
 const lines = [
   `# Car critic report — ${stamp}`,
   '',
   `Build: ${stats.buildMs} ms (cut ${stats.cutMs} ms), triangles ${stats.triangles}.`,
   '',
-  '| view | back faces visible | % of car | see-through holes | verdict |',
-  '|---|---:|---:|---:|---|',
-  ...results.map((r) => `| ${r.view} | ${r.green} | ${r.greenPct} | ${r.holes} | ${r.greenPct > GREEN_LIMIT || r.holes > HOLE_LIMIT ? 'FAIL' : 'ok'} |`),
+  '| view | back faces (solid) | % of car | incl. AA edges | see-through holes | verdict |',
+  '|---|---:|---:|---:|---:|---|',
+  ...results.map(
+    (r) => `| ${r.view} | ${r.solid} | ${r.solidPct} | ${r.green} | ${r.holes} | ${r.solidPct > SOLID_LIMIT || r.holes > HOLE_LIMIT ? 'FAIL' : 'ok'} |`,
+  ),
   '',
   'Images: sheet.png (look views), defects.png (red = inside of a skin visible, magenta = see-through).',
   '',
@@ -82,6 +87,9 @@ const lines = [
     .sort((a, b) => b[1] - a[1])
     .slice(0, 14)
     .map(([id, t]) => `- ${id}: ${t}`),
+  '',
+  '## Defect sources (back-face pixels per mesh)',
+  ...results.flatMap((r) => ['', `### ${r.view}`, ...r.sources.map((s) => `- ${s.px} px — ${s.mesh}`)]),
 ];
 if (logs.length) lines.push('', '## Console', '', ...logs.slice(0, 30).map((l) => `    ${l}`));
 writeFileSync(join(out, 'report.md'), lines.join('\n'));

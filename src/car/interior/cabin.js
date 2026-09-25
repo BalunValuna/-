@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doubleSided } from '../materials.js';
 import { surfaceNets } from '../../geo/surfaceNets.js';
 import { sdRoundBox, sdPolygon, smin } from '../../geo/sdf.js';
 import { loft } from '../../geo/loft.js';
@@ -162,7 +163,7 @@ export function buildCabin(mats) {
   mirror.name = 'rearViewMirror';
   mirror.position.set(0, 1.295, -0.3);
   add(roundedBox(0.24, 0.065, 0.03, 0.014), mats.satinBlack, 'mirrorBody', mirror);
-  const mg = add(new THREE.PlaneGeometry(0.22, 0.05), mats.chrome, 'mirrorGlass', mirror);
+  const mg = add(new THREE.PlaneGeometry(0.22, 0.05), doubleSided(mats.chrome), 'mirrorGlass', mirror);
   mg.position.z = 0.0155;
   add(new THREE.CylinderGeometry(0.008, 0.01, 0.07, 10), mats.satinBlack, 'mirrorStem', mirror).position.set(0, 0.045, -0.02);
   mirror.rotation.x = -0.08;

@@ -4,6 +4,7 @@ import { mesh, roundedBox, sweepProfile, roundRectSection, latheY } from '../../
 import { hoodEdgeX, DLO, LAYOUT, roofRailY } from './regions.js';
 import { lowerTopY, beltY, greenSideX, frontZ, rearZ } from './shape.js';
 import { CAR } from '../design.js';
+import { doubleSided } from '../materials.js';
 
 /**
  * Body-in-white structure under the skin ("каркас"): floor, sills, firewall, engine bay aprons
@@ -50,7 +51,7 @@ export function buildStructure(mats) {
       side > 0 ? Math.PI : 0,
       Math.PI,
     );
-    const t = add(tower, mats.paint, 'strutTower');
+    const t = add(tower, doubleSided(mats.paint), 'strutTower');
     t.position.set(side * APRON_X, 0, CAR.axleF);
     const mount = add(new THREE.CylinderGeometry(0.035, 0.04, 0.03, 16), mats.rubber, 'strutMount');
     mount.position.set(side * (APRON_X - 0.035), 0.85, CAR.axleF);
@@ -77,18 +78,22 @@ export function buildStructure(mats) {
     const z0 = -1.06 + 0.12 * (x / 0.6) ** 2;
     plenum.push([V(x, 0.905, FIREWALL_Z - 0.04), V(x, 0.885, z0 + 0.02), V(x, lowerTopY(z0, Math.abs(x)) - 0.03, z0)]);
   }
-  add(loft(plenum, { flip: true }), mats.paint, 'plenum');
+  add(loft(plenum, { flip: true }), doubleSided(mats.paint), 'plenum');
 
   // radiator support (black front-end module)
-  const top = add(roundedBox(1.12, 0.05, 0.06, 0.01), mats.blackPlastic, 'radSupportTop');
-  top.position.set(0, 0.748, RADSUP_Z);
+  // The nose sweeps back towards the corners and the headlight housings fill them, so the top bar
+  // and posts stay between the lamps and the brackets run under the housings.
+  const top = add(roundedBox(0.72, 0.05, 0.06, 0.01), mats.blackPlastic, 'radSupportTop');
+  top.position.set(0, 0.748, RADSUP_Z + 0.012);
   const bottom = add(roundedBox(0.98, 0.05, 0.06, 0.01), mats.blackPlastic, 'radSupportBottom');
   bottom.position.set(0, 0.33, RADSUP_Z);
   for (const side of [-1, 1]) {
     const post = add(roundedBox(0.06, 0.44, 0.06, 0.01), mats.blackPlastic, 'radSupportPost');
-    post.position.set(side * 0.47, 0.54, RADSUP_Z);
-    const brace = add(roundedBox(0.2, 0.05, 0.05, 0.01), mats.blackPlastic, 'headlightMount');
-    brace.position.set(side * 0.6, 0.74, RADSUP_Z - 0.02);
+    post.position.set(side * 0.36, 0.54, RADSUP_Z);
+    // headlight bracket under the housing, following the swept nose 7 cm behind the skin
+    const bracket = [];
+    for (let ax = 0.36; ax <= 0.64 + 1e-6; ax += 0.035) bracket.push(V(side * ax, 0.585, frontZ(ax, 0.585) + 0.07));
+    add(sweepProfile(bracket, roundRectSection(0.045, 0.04, 0.008)), mats.blackPlastic, 'headlightMount');
   }
   // crash beams behind the bumper covers
   const beamF = [];
@@ -135,7 +140,7 @@ export function buildStructure(mats) {
     floorSections.push(sec);
   }
   add(loft(floorSections, { flip: true }), mats.paint, 'floor');
-  add(loft(floorSections), mats.primer, 'floorUnder');
+  add(loft(floorSections), doubleSided(mats.primer), 'floorUnder');
   for (const side of [-1, 1]) {
     const sill = sweepProfile(
       [V(side * 0.78, 0.265, -0.86), V(side * 0.78, 0.265, 1.02)],
@@ -181,14 +186,14 @@ export function buildStructure(mats) {
     tf.push(sec);
   }
   add(loft(tf), mats.paint, 'trunkFloor');
-  add(loft(tf, { flip: true }), mats.primer, 'trunkFloorUnder');
+  add(loft(tf, { flip: true }), doubleSided(mats.primer), 'trunkFloorUnder');
   // rear panel below the trunk opening
   const rp = [];
   for (let x = -0.7; x <= 0.7 + 1e-6; x += 0.07) {
     const ax = Math.abs(x);
     rp.push([V(x, trunkY, rearZ(ax, 0.45) - 0.04), V(x, 0.74, rearZ(ax, 0.74) - 0.03), V(x, 0.77, rearZ(ax, 0.77) - 0.06)]);
   }
-  add(loft(rp, { flip: true }), mats.paint, 'rearPanel');
+  add(loft(rp, { flip: true }), doubleSided(mats.paint), 'rearPanel');
   // parcel shelf behind the rear seat
   const shelf = planarPanel(
     [
@@ -212,7 +217,7 @@ export function buildStructure(mats) {
     (u, v, w, out) => out.set(u, v, 1.3 - (v - trunkY) * 0.3),
     { normal: V(0, 0, 1) },
   );
-  add(bh, mats.paint, 'rearBulkhead');
+  add(bh, doubleSided(mats.paint), 'rearBulkhead');
 
   g.traverse((o) => {
     if (o.isMesh) {

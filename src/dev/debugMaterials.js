@@ -35,6 +35,38 @@ export class DebugMaterials {
     this.wire = new THREE.MeshBasicMaterial({ color: 0x9fd3ff, wireframe: true });
     // Glass is solid in defect mode, otherwise the background behind it would read as a hole.
     this.glass = new THREE.MeshBasicMaterial({ color: 0x3fa7c9, side: THREE.DoubleSide });
+    this.idMaterials = new Map();
+  }
+
+  /**
+   * Source attribution pass: every single-sided mesh draws its back faces in a unique id colour
+   * (r,g = id, b = 255) and its front faces black, so defect pixels can be traced to meshes.
+   */
+  idMaterial(id) {
+    let m = this.idMaterials.get(id);
+    if (!m) {
+      m = new THREE.ShaderMaterial({
+        side: THREE.DoubleSide,
+        uniforms: { idColor: { value: new THREE.Vector3((id & 255) / 255, ((id >> 8) & 255) / 255, 1) } },
+        vertexShader: 'void main() { gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform vec3 idColor; void main() { gl_FragColor = gl_FrontFacing ? vec4(0.0, 0.0, 0.0, 1.0) : vec4(idColor, 1.0); }',
+      });
+      this.idMaterials.set(id, m);
+    }
+    return m;
+  }
+
+  applyIds(root) {
+    const meshes = [];
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      if (!this.saved.has(o)) this.saved.set(o, o.material);
+      const orig = this.saved.get(o);
+      const twoSided = o.userData.glass || orig.side === THREE.DoubleSide;
+      meshes.push(o);
+      o.material = twoSided ? this.glass : this.idMaterial(meshes.length);
+    });
+    return meshes;
   }
 
   apply(root, mode) {

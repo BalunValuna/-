@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doubleSided } from '../materials.js';
 import { surfaceNets } from '../../geo/surfaceNets.js';
 import { clipMesh } from '../../geo/clip.js';
 import { hemPanel } from '../../geo/hem.js';
@@ -64,7 +65,7 @@ export function buildDashboard(mats) {
   const dashSkin = clipMesh(raw, (x, y, z) => Math.min(0.002 - GLOVE(x, y, z), -0.72 - z));
   const two = dashSkin.partition((x, y) => (y > 0.87 ? 'upper' : 'lower'));
   g.add(mesh(two.get('upper').toGeometry(), mats.dashPlastic, { name: 'dashUpper' }));
-  g.add(mesh(two.get('lower').toGeometry(), mats.trimPlastic, { name: 'dashLower' }));
+  g.add(mesh(two.get('lower').toGeometry(), doubleSided(mats.trimPlastic), { name: 'dashLower' }));
   const lid = hemPanel(lidSkin, { roll: 0.002, depth: 0.02, thickness: 0.002 });
   const lidGroup = new THREE.Group();
   lidGroup.name = 'glovebox';

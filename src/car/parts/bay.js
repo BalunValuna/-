@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doubleSided } from '../materials.js';
 import { mesh, roundedBox, tube, latheY } from '../../geo/primitives.js';
 import { labelTexture } from '../../render/carTextures.js';
 
@@ -160,8 +161,8 @@ export function buildBayPlumbing(mats) {
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   g.add(mesh(tube([V(0.3, 0.7, -1.9), V(0.3, 0.74, -1.78), V(0.22, 0.78, -1.62), V(0.2, 0.76, -1.52)], 0.018, 20, 10), mats.hose, { name: 'upperHose' }));
   g.add(mesh(tube([V(-0.3, 0.4, -1.88), V(-0.2, 0.36, -1.75), V(-0.05, 0.4, -1.65)], 0.018, 20, 10), mats.hose, { name: 'lowerHose' }));
-  g.add(mesh(tube([V(-0.3, 0.78, -1.28), V(-0.34, 0.82, -1.4), V(-0.3, 0.84, -1.52), V(-0.24, 0.84, -1.55)], 0.03, 20, 12), mats.hose, { name: 'intakeDuct' }));
-  g.add(mesh(tube([V(-0.32, 0.72, -1.12), V(-0.38, 0.8, -1.3), V(-0.44, 0.76, -1.8)], 0.028, 20, 12), mats.blackPlastic, { name: 'airSnorkel' }));
+  g.add(mesh(tube([V(-0.3, 0.78, -1.28), V(-0.34, 0.82, -1.4), V(-0.3, 0.84, -1.52), V(-0.24, 0.84, -1.55)], 0.03, 20, 12), doubleSided(mats.hose), { name: 'intakeDuct' }));
+  g.add(mesh(tube([V(-0.32, 0.72, -1.12), V(-0.38, 0.8, -1.3), V(-0.44, 0.76, -1.8)], 0.028, 20, 12), doubleSided(mats.blackPlastic), { name: 'airSnorkel' }));
   g.add(mesh(tube([V(-0.24, 0.79, -1.67), V(-0.1, 0.84, -1.6), V(0.05, 0.86, -1.5), V(0.18, 0.84, -1.2)], 0.007, 24, 6), mats.hose, { name: 'harness' }));
   g.add(mesh(tube([V(-0.4, 0.79, -1.67), V(-0.45, 0.6, -1.55), V(-0.42, 0.4, -1.4)], 0.008, 16, 6), new THREE.MeshStandardMaterial({ color: 0xa01414, roughness: 0.6 }), { name: 'batteryCable' }));
   return shade(g);

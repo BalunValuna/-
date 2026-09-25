@@ -81,10 +81,14 @@ function setView(name) {
   ground.visible = v.ground !== false;
 }
 
+// In defect mode the ground is pure blue: looking under the car through the wheels is not a hole.
+const groundMat = ground.material;
+const groundDefectMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+
 function setDebug(mode) {
   debug.apply(model.root, mode);
   scene.background = new THREE.Color(mode === 'defects' ? 0xff00ff : 0x2a2d31);
-  ground.visible = mode !== 'defects';
+  ground.material = mode === 'defects' ? groundDefectMat : groundMat;
 }
 
 function render() {
@@ -118,6 +122,7 @@ function analyze() {
   const d = img.data;
   const isMagenta = (i) => d[i] > 180 && d[i + 2] > 180 && d[i + 1] < 90;
   const isGreen = (i) => d[i + 1] > 170 && d[i] < 90 && d[i + 2] < 90;
+  const isGround = (i) => d[i] < 40 && d[i + 1] < 40 && d[i + 2] > 200;
   // flood fill background from the border; magenta not reached is enclosed
   const reached = new Uint8Array(w * h);
   const stack = [];
@@ -142,7 +147,7 @@ function analyze() {
     const bg = isMagenta(i);
     const hole = bg && !reached[p];
     const back = isGreen(i);
-    if (!bg) body++;
+    if (!bg && !isGround(i)) body++;
     if (hole) holes++;
     if (back) green++;
     const lum = bg && reached[p] ? 25 : (d[i] + d[i + 1] + d[i + 2]) / 6 + 20;
@@ -156,6 +161,66 @@ function analyze() {
   scene.background = prevBg;
   ground.visible = prevGround;
   return { green, holes, body, greenPct: (100 * green) / Math.max(body, 1), image: c.toDataURL('image/png') };
+}
+
+/** Human-readable path of a mesh: owning part id, named ancestors, material. */
+function describe(mesh) {
+  const names = [];
+  let part = '';
+  for (let o = mesh; o; o = o.parent) {
+    if (o.userData.partId && !part) part = o.userData.partId;
+    if (o.name && o !== model.root && !o.name.endsWith('_pivot')) names.push(o.name);
+  }
+  const mat = debug.saved.get(mesh)?.name || '';
+  return `${part || '?'} :: ${names.reverse().join('/') || '(unnamed)'} [${mat}] v${mesh.geometry.getAttribute('position').count}`;
+}
+
+/** Back-face pixels of the current view, attributed to meshes (largest first). */
+function defectSources(limit = 12) {
+  const prevBg = scene.background;
+  const prevGround = ground.visible;
+  const meshes = debug.applyIds(model.root);
+  scene.background = new THREE.Color(0, 0, 0);
+  ground.visible = false;
+  const prevTone = renderer.toneMapping;
+  renderer.toneMapping = THREE.NoToneMapping;
+  render();
+  const w = renderer.domElement.width;
+  const h = renderer.domElement.height;
+  const gl = renderer.getContext();
+  const px = new Uint8Array(w * h * 4);
+  gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const counts = new Map();
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 2] !== 255) continue;
+    const id = px[i] | (px[i + 1] << 8);
+    if (id > 0 && id <= meshes.length) counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  renderer.toneMapping = prevTone;
+  debug.apply(model.root, 'none');
+  scene.background = prevBg;
+  ground.visible = prevGround;
+  let total = 0;
+  for (const n of counts.values()) total += n;
+  const top = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id, n]) => ({ px: n, mesh: describe(meshes[id - 1]) }));
+  return { total, top };
+}
+
+/** Meshes under canvas pixels (x, y from the top-left), nearest first. */
+const raycaster = new THREE.Raycaster();
+function pick(points) {
+  const w = renderer.domElement.width;
+  const h = renderer.domElement.height;
+  return points.map(([x, y]) => {
+    raycaster.setFromCamera(new THREE.Vector2((x / w) * 2 - 1, 1 - (y / h) * 2), camera);
+    const hit = raycaster.intersectObject(model.root, true).find((i) => i.object.visible);
+    if (!hit) return { x, y, mesh: null };
+    const p = hit.point;
+    return { x, y, mesh: describe(hit.object), at: [p.x, p.y, p.z].map((v) => +v.toFixed(3)) };
+  });
 }
 
 setView(params.get('view') || 'front34');
@@ -173,6 +238,15 @@ window.lab = {
   render,
   snap,
   analyze,
+  defectSources,
+  pick,
+  setCamera: (pos, target, fov = 35) => {
+    camera.fov = fov;
+    camera.position.fromArray(pos);
+    controls.target.fromArray(target);
+    camera.updateProjectionMatrix();
+    controls.update();
+  },
   model,
   stats: () => ({ buildMs, ...model.stats(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }),
 };

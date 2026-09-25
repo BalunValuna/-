@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doubleSided } from '../materials.js';
 import { cutSkin, glassPane, lateralIn, SIDES, ROLL, GAP } from './panels.js';
 import { hemPanel, sweepLoop, flangeDir } from '../../geo/hem.js';
 import { MeshData, boundaryLoops } from '../../geo/meshData.js';
@@ -7,6 +8,7 @@ import { beltY } from './shape.js';
 import { LAYOUT } from './regions.js';
 import { buildDetails, buildDoorDetails } from './details.js';
 import { buildTrunkTrim, innerFrame } from './trims.js';
+import { buildHeadlightInternals, buildTaillightInternals } from './lamps.js';
 
 const CUT = GAP / 2 + ROLL;
 const DOOR_STEP = 0.02;
@@ -98,7 +100,7 @@ export function buildBody(mats) {
       return y < 0.3 && ny < -0.55 ? 'under' : 'paint';
     });
     add(g, split.get('paint'), mats.paintShell, 'body');
-    add(g, split.get('under'), mats.underbody, 'underbody');
+    add(g, split.get('under'), doubleSided(mats.underbody), 'underbody');
     parts.body = g;
   }
   panel('liner', mats.linerPlastic, { depth: 0.012, thickness: 0 });
@@ -291,11 +293,13 @@ function lampShell(skin, mats, kind, name, count) {
   walls.normals = outer.normals;
   walls.indices = outer.indices.slice(skin.indices.length);
   const wallMesh = twoSided(walls.compact(), 0.0015);
-  g.add(toMesh(wallMesh, mats.lampHousing, `${name}_housing`));
+  g.add(toMesh(wallMesh, kind === 'headlight' ? mats.headlightHousing : mats.lampHousing, `${name}_housing`));
   const back = skin.clone();
   for (let i = 0; i < back.vertexCount; i++) for (let c = 0; c < 3; c++) back.positions[i * 3 + c] -= back.normals[i * 3 + c] * depth;
   g.add(toMesh(twoSided(back.flip(), 0.0015), kind === 'headlight' ? mats.reflector : mats.lampHousing, `${name}_back`));
   count(wallMesh);
   count(back);
+  const sign = name.endsWith('_L') ? -1 : 1;
+  g.add(kind === 'headlight' ? buildHeadlightInternals(skin, mats, sign) : buildTaillightInternals(skin, mats, sign));
   return g;
 }

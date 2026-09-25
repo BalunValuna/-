@@ -5,6 +5,20 @@ import { carpetNormal, fabricNormal, grainNormal, treadNormal } from '../render/
  * Shared materials of the car. One instance per paint colour; everything else is shared.
  */
 let shared = null;
+const twoSidedCache = new WeakMap();
+
+/** Double-sided clone of a material, for thin single-layer parts (sheet metal, trim, tubes). */
+export function doubleSided(mat) {
+  if (mat.side === THREE.DoubleSide) return mat;
+  let m = twoSidedCache.get(mat);
+  if (!m) {
+    m = mat.clone();
+    m.side = THREE.DoubleSide;
+    m.name = `${mat.name}2s`;
+    twoSidedCache.set(mat, m);
+  }
+  return m;
+}
 
 function makeShared() {
   const std = (o) => new THREE.MeshStandardMaterial(o);
@@ -65,6 +79,7 @@ function makeShared() {
     }),
     reflector: std({ color: 0xdfe3e8, roughness: 0.12, metalness: 1.0, side: THREE.DoubleSide, name: 'reflector' }),
     lampHousing: std({ color: 0x1a1b1d, roughness: 0.5, metalness: 0.2, side: THREE.DoubleSide, name: 'lampHousing' }),
+    headlightHousing: std({ color: 0x8d9197, roughness: 0.32, metalness: 0.9, side: THREE.DoubleSide, name: 'headlightHousing' }),
     tailLens: phys({ color: 0x8a0508, roughness: 0.08, metalness: 0.0, transmission: 0, transparent: true, opacity: 0.88, emissive: 0x000000, name: 'tailLens' }),
     reflectorRed: phys({ color: 0x6a0306, roughness: 0.15, metalness: 0.2, clearcoat: 1, name: 'reflectorRed' }),
     amberLens: phys({ color: 0xd97a10, roughness: 0.08, metalness: 0.0, transparent: true, opacity: 0.85, name: 'amberLens' }),
@@ -111,5 +126,34 @@ export function carMaterials(paintColor = 0x8a1c22) {
   paintShell.side = THREE.DoubleSide;
   const linerPlastic = shared.blackPlastic.clone();
   linerPlastic.side = THREE.DoubleSide;
-  return { ...shared, paint, paintInner, paintShell, linerPlastic };
+  return { ...shared, paint, paintInner, paintShell, linerPlastic, lamps: lampMaterials() };
+}
+
+/**
+ * Emitting lamp parts, one set per car so each car's lights switch independently. The light
+ * controller sets `emissiveIntensity`; at 0 they read as unlit bulbs and guides.
+ */
+function lampMaterials() {
+  const bulb = (color, emissive) =>
+    new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 0, roughness: 0.3, metalness: 0.0, name: 'lampBulb' });
+  return {
+    low: bulb(0xf4f1ea, 0xfff1d8),
+    high: bulb(0xf4f1ea, 0xfff4e4),
+    drl: bulb(0xd9dee4, 0xeef5ff),
+    turn: bulb(0xe8a040, 0xff9a1a),
+    turnRear: bulb(0xe8a040, 0xff9a1a),
+    brake: bulb(0x9a1a18, 0xff1810),
+    tail: bulb(0x8a1614, 0xff2418),
+    reverse: bulb(0xeeeeee, 0xffffff),
+    projector: new THREE.MeshPhysicalMaterial({
+      color: 0xa9bccb,
+      roughness: 0.04,
+      metalness: 0.1,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      emissive: 0xfff1d8,
+      emissiveIntensity: 0,
+      name: 'projectorLens',
+    }),
+  };
 }

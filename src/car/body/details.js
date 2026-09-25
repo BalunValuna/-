@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doubleSided } from '../materials.js';
 import { MeshData } from '../../geo/meshData.js';
 import { clipMesh } from '../../geo/clip.js';
 import { surfaceNets } from '../../geo/surfaceNets.js';
@@ -117,7 +118,7 @@ export function buildDetails(mats) {
   planarUV(intakeGeo, 'xy', 18);
   front.add(mesh(intakeGeo, intakeMat, { name: 'intakeMesh' }));
   const barPts = noseLine(-0.43, 0.43, 0.372, 0.02, 20);
-  front.add(mesh(sweepProfile(barPts, ellipseSection(0.008, 0.013, 10)), mats.glossBlack, { name: 'intakeBar' }));
+  front.add(mesh(sweepProfile(barPts, ellipseSection(0.008, 0.013, 10)), doubleSided(mats.glossBlack), { name: 'intakeBar' }));
   for (const side of [-1, 1]) {
     const pocket = endPatch(
       (x, y, z) => Math.max(REGIONS.fogPocket(x, y, z), -side * x),
@@ -127,7 +128,7 @@ export function buildDetails(mats) {
       0.49,
       { recess: 0.026 },
     );
-    front.add(mesh(pocket.toGeometry(), mats.blackPlastic, { name: 'fogPocket' }));
+    front.add(mesh(pocket.toGeometry(), doubleSided(mats.blackPlastic), { name: 'fogPocket' }));
     const c = frontPoint(side * 0.66, 0.39);
     c.z += 0.018;
     const fog = new THREE.Group();
@@ -159,17 +160,29 @@ export function buildDetails(mats) {
   const rp = rearPoint(0, 0.893);
   rear.add(plate(mats, rp, 'rear'));
   const garnish = noseLine(-0.31, 0.31, 0.975, -0.003, 16, true);
-  rear.add(mesh(sweepProfile(garnish, ellipseSection(0.005, 0.009, 10)), mats.chrome, { name: 'trunkGarnish' }));
+  rear.add(mesh(sweepProfile(garnish, ellipseSection(0.005, 0.009, 10)), doubleSided(mats.chrome), { name: 'trunkGarnish' }));
   rear.add(badge(mats, rearPoint(0, 1.035), new THREE.Vector3(0, 0, 1), 0.045));
 
   // exhaust tip under the left of the rear bumper
-  const tip = new THREE.CylinderGeometry(0.036, 0.034, 0.12, 20, 1, true).rotateX(Math.PI / 2);
+  // rolled-lip tip: outer wall, rounded lip, inner wall; the soot disc deep inside faces outwards
+  const tip = new THREE.LatheGeometry(
+    [
+      new THREE.Vector2(0.03, -0.06),
+      new THREE.Vector2(0.03, 0.052),
+      new THREE.Vector2(0.032, 0.058),
+      new THREE.Vector2(0.036, 0.06),
+      new THREE.Vector2(0.0385, 0.057),
+      new THREE.Vector2(0.038, 0.05),
+      new THREE.Vector2(0.034, -0.06),
+    ].reverse(),
+    24,
+  ).rotateX(Math.PI / 2);
   const tipMesh = mesh(tip, mats.chrome, { name: 'exhaustTip' });
   tipMesh.position.set(-0.46, 0.27, 2.14);
   tipMesh.scale.set(1.25, 0.8, 1);
   rear.add(tipMesh);
-  const tipInner = mesh(new THREE.CircleGeometry(0.033, 20).rotateY(Math.PI), mats.frit, { name: 'exhaustInner', cast: false });
-  tipInner.position.set(-0.46, 0.27, 2.17);
+  const tipInner = mesh(new THREE.CircleGeometry(0.031, 20), mats.frit, { name: 'exhaustInner', cast: false });
+  tipInner.position.set(-0.46, 0.27, 2.12);
   tipInner.scale.set(1.25, 0.8, 1);
   rear.add(tipInner);
 
@@ -187,7 +200,7 @@ export function buildDetails(mats) {
       const p = topPoint(x, z);
       if (p) pts.push(p.add(new THREE.Vector3(0, 0.012, 0)));
     }
-    top.add(mesh(sweepProfile(pts, ellipseSection(0.007, 0.0045, 8)), mats.satinBlack, { name: 'wiper' }));
+    top.add(mesh(sweepProfile(pts, ellipseSection(0.007, 0.0045, 8)), doubleSided(mats.satinBlack), { name: 'wiper' }));
     const blade = mesh(tube(pts.slice(1).map((p) => p.clone().add(new THREE.Vector3(0, -0.005, 0.02))), 0.007, 20, 6), mats.rubber, {
       name: 'wiperBlade',
     });
@@ -282,7 +295,7 @@ function buildMirror(mats, side) {
   glassShape.quadraticCurveTo(-w, h, -w, h - r);
   glassShape.lineTo(-w, -h + r);
   glassShape.quadraticCurveTo(-w, -h, -w + r, -h);
-  const glass = mesh(new THREE.ShapeGeometry(glassShape, 6), mats.chrome, { name: 'mirrorGlass', cast: false });
+  const glass = mesh(new THREE.ShapeGeometry(glassShape, 6), doubleSided(mats.chrome), { name: 'mirrorGlass', cast: false });
   glass.position.set(0.105, 0, 0.037);
   const signal = mesh(roundedBox(0.09, 0.008, 0.01, 0.003), mats.amberLens, { name: 'mirrorSignal' });
   signal.position.set(0.14, -0.045, -0.02);

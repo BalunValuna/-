@@ -126,17 +126,26 @@ export function sweepProfile(points, section, { up = new THREE.Vector3(0, 1, 0),
     }
   }
   if (caps && !closed) {
-    for (const [ring, flip] of [
-      [0, true],
-      [n - 1, false],
+    // Caps get their own vertices (crisp rim) and face along -tangent at the start, +tangent at the end.
+    for (const [ring, sign] of [
+      [0, -1],
+      [n - 1, 1],
     ]) {
       const base = positions.length / 3;
       const c = pts[ring];
       positions.push(c.x, c.y, c.z);
       for (let j = 0; j < m; j++) {
-        const j2 = (j + 1) % m;
-        if (flip) indices.push(base, ring * m + j, ring * m + j2);
-        else indices.push(base, ring * m + j2, ring * m + j);
+        const k = (ring * m + j) * 3;
+        positions.push(positions[k], positions[k + 1], positions[k + 2]);
+      }
+      const at = (i) => new THREE.Vector3(positions[(base + i) * 3], positions[(base + i) * 3 + 1], positions[(base + i) * 3 + 2]);
+      const n0 = new THREE.Vector3().crossVectors(at(1).sub(at(0)), at(2).sub(at(0)));
+      const flip = n0.dot(tangents[ring]) * sign < 0;
+      for (let j = 0; j < m; j++) {
+        const a = base + 1 + j;
+        const b = base + 1 + ((j + 1) % m);
+        if (flip) indices.push(base, b, a);
+        else indices.push(base, a, b);
       }
     }
   }

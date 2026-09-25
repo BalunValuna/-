@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doubleSided } from '../materials.js';
 import { clipMesh } from '../../geo/clip.js';
 import { hemPanel } from '../../geo/hem.js';
 import { boundaryDistanceField } from './panels.js';
@@ -46,7 +47,7 @@ export function buildTrunkTrim(mats) {
       const top = 0.72 * overArch + (1 - overArch) * 0.98;
       secs.push([V(side * 0.72, floorY, z), V(side * xIn, floorY, z), V(side * (xIn - 0.01), top - 0.06, z), V(side * (xIn + 0.05), top, z), V(side * 0.74, top + 0.02, z)]);
     }
-    g.add(mesh(loft(secs, { flip: side < 0 }), mats.carpet, { name: 'trunkSideTrim' }));
+    g.add(mesh(loft(secs, { flip: side < 0 }), doubleSided(mats.carpet), { name: 'trunkSideTrim' }));
   }
   return g;
 }

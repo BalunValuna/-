@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { latheX, mesh, roundedBox, roundedShape } from '../../geo/primitives.js';
+import { doubleSided } from '../materials.js';
+import { latheX, mesh, roundedBox } from '../../geo/primitives.js';
 import { CAR } from '../design.js';
 
 /**
@@ -64,41 +65,22 @@ export function buildWheel(mats, { spokes = 5 } = {}) {
     ],
     72,
   );
-  spin.add(mesh(lip, mats.alloy, { name: 'rimLip' }));
+  spin.add(mesh(lip, doubleSided(mats.alloy), { name: 'rimLip' }));
 
-  // --- spoke face: disc with windows, dished towards the hub
-  const faceR = 0.192;
-  const shape = new THREE.Shape();
-  shape.absarc(0, 0, faceR, 0, Math.PI * 2, false);
-  const windows = [];
-  for (let k = 0; k < spokes; k++) {
-    const c = (k / spokes) * Math.PI * 2;
-    windows.push(windowShape(c, 0.086, 0.176, 0.17, 0.36));
-    windows.push(windowShape(c + Math.PI / spokes, 0.1, 0.176, 0.028, 0.045));
-  }
-  shape.holes.push(...windows);
-  for (let k = 0; k < spokes; k++) {
-    const a = (k / spokes) * Math.PI * 2 + Math.PI / spokes;
-    const hole = new THREE.Path();
-    hole.absarc(Math.cos(a) * 0.05, Math.sin(a) * 0.05, 0.0085, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
-  }
-  const face = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.016,
-    bevelEnabled: true,
-    bevelThickness: 0.004,
-    bevelSize: 0.003,
-    bevelSegments: 1,
-    curveSegments: 10,
-  });
-  face.rotateY(Math.PI / 2); // extrusion +Z → +X
-  const pos = face.getAttribute('position');
-  for (let i = 0; i < pos.count; i++) {
-    const r = Math.hypot(pos.getY(i), pos.getZ(i));
-    pos.setX(i, pos.getX(i) + 0.036 + 0.034 * Math.pow(Math.min(r / faceR, 1), 1.6));
-  }
-  face.computeVertexNormals();
-  spin.add(mesh(face, mats.alloy, { name: 'rimFace' }));
+  // --- five double spokes, concave: the hub sits deeper than the lip
+  spin.add(mesh(spokeGeometry(spokes), mats.alloy, { name: 'rimFace' }));
+  const hubPlate = latheX(
+    [
+      [0.0301, 0.0555],
+      [0.056, 0.0565],
+      [0.07, 0.0535],
+      [0.078, 0.044],
+      [0.079, 0.028],
+      [0.072, 0.02],
+    ],
+    40,
+  );
+  spin.add(mesh(hubPlate, doubleSided(mats.alloy), { name: 'rimHub' }));
 
   // --- hub: centre cap and lug nuts
   const cap = latheX(
@@ -133,7 +115,7 @@ export function buildWheel(mats, { spokes = 5 } = {}) {
     ],
     48,
   );
-  spin.add(mesh(disc, mats.brakeDisc, { name: 'brakeDisc' }));
+  spin.add(mesh(disc, doubleSided(mats.brakeDisc), { name: 'brakeDisc' }));
   const caliper = mesh(roundedBox(0.05, 0.1, 0.055, 0.012), mats.caliper, { name: 'caliper' });
   caliper.position.set(-0.012, 0.075, 0.1);
   caliper.rotation.x = -0.65;
@@ -142,20 +124,67 @@ export function buildWheel(mats, { spokes = 5 } = {}) {
   return { root, spin, caliper };
 }
 
-/** Rounded wheel window centred on angle c between radii r0 and r1 (half angles at r0 / r1). */
-function windowShape(c, r0, r1, halfInner, halfOuter) {
-  const pts = [];
-  const outerSteps = 6;
-  for (let i = 0; i <= outerSteps; i++) {
-    const a = c - halfOuter + (2 * halfOuter * i) / outerSteps;
-    pts.push([Math.cos(a) * r1, Math.sin(a) * r1]);
+
+/** Axial position of the spoke top surface at radius r (concave dish towards the hub). */
+const spokeTop = (r) => 0.05 + 0.026 * Math.pow(r / 0.19, 1.5);
+
+/**
+ * Double spokes as lofted bars with chamfered, slightly crowned tops. Every side of the section
+ * is its own strip so edges stay crisp while shading is smooth along the spoke.
+ */
+function spokeGeometry(pairs) {
+  const positions = [];
+  const indices = [];
+  const steps = 14;
+  const r0 = 0.052;
+  const r1 = 0.197;
+  const section = (w, t) => {
+    const c = Math.min(0.004, w * 0.2);
+    return [
+      [-w / 2, -t],
+      [w / 2, -t],
+      [w / 2, -0.35 * t],
+      [w / 2 - c, 0],
+      [0, 0.08 * t],
+      [-w / 2 + c, 0],
+      [-w / 2, -0.35 * t],
+    ];
+  };
+  const axis = new THREE.Vector3(1, 0, 0);
+  for (let k = 0; k < pairs; k++) {
+    const theta = (k / pairs) * Math.PI * 2;
+    const rho = new THREE.Vector3(0, Math.cos(theta), Math.sin(theta));
+    const tau = new THREE.Vector3(0, -Math.sin(theta), Math.cos(theta));
+    for (const side of [-1, 1]) {
+      const offs = (r) => side * (0.009 + 0.022 * ((r - r0) / (r1 - r0)) ** 1.3);
+      const rings = [];
+      for (let i = 0; i <= steps; i++) {
+        const r = r0 + ((r1 - r0) * i) / steps;
+        const u = (r - r0) / (r1 - r0);
+        const centre = rho.clone().multiplyScalar(r).addScaledVector(tau, offs(r)).addScaledVector(axis, spokeTop(r));
+        const dr = 1e-3;
+        const ahead = rho.clone().multiplyScalar(r + dr).addScaledVector(tau, offs(r + dr));
+        const dir = ahead.sub(rho.clone().multiplyScalar(r).addScaledVector(tau, offs(r))).normalize();
+        const lateral = new THREE.Vector3().crossVectors(axis, dir).normalize();
+        const w = 0.034 - 0.01 * u;
+        const t = 0.024 - 0.008 * u;
+        rings.push(section(w, t).map(([sx, sa]) => centre.clone().addScaledVector(lateral, sx).addScaledVector(axis, sa)));
+      }
+      const m = rings[0].length;
+      for (let e = 0; e < m; e++) {
+        const e2 = (e + 1) % m;
+        const base = positions.length / 3;
+        for (const ring of rings) positions.push(ring[e].x, ring[e].y, ring[e].z, ring[e2].x, ring[e2].y, ring[e2].z);
+        for (let i = 0; i < steps; i++) {
+          const a = base + i * 2;
+          indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+      }
+    }
   }
-  for (let i = 0; i <= 2; i++) {
-    const a = c + halfInner - halfInner * i;
-    pts.push([Math.cos(a) * r0, Math.sin(a) * r0]);
-  }
-  const radii = pts.map((_, i) => (i === 0 || i === outerSteps ? 0.012 : i > outerSteps ? 0.01 : 0.004));
-  const s = roundedShape(pts, radii);
-  const path = new THREE.Path(s.getPoints(4).reverse());
-  return path;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
 }

@@ -247,11 +247,15 @@ export function wheelHouseField(x, y, z) {
 }
 export const WHEELHOUSE_INNER_X = 0.5;
 
-/** Outer skin of the whole car body. */
-export function bodyField(x, y, z) {
+/** Outer skin without the wheel arches (the mesher never sees the arch crease). */
+export function outerField(x, y, z) {
   // Small fillet where the glass meets the body: a razor concave crease meshes badly.
-  const body = roundMin(lowerBodyField(x, y, z), greenhouseField(x, y, z), 0.012);
-  return roundMax(body, -wheelHouseField(x, y, z), 0.012);
+  return roundMin(lowerBodyField(x, y, z), greenhouseField(x, y, z), 0.012);
+}
+
+/** Outer skin of the whole car body, arches included (surface queries and detail placement). */
+export function bodyField(x, y, z) {
+  return roundMax(outerField(x, y, z), -wheelHouseField(x, y, z), 0.012);
 }
 
 /** Axis-aligned bounds that contain the body with a margin, for meshing. */

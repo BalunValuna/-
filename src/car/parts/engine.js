@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doubleSided } from '../materials.js';
 import { latheX, latheY, mesh, roundedBox, sweepProfile, roundRectSection, ellipseSection, tube } from '../../geo/primitives.js';
 import { labelTexture } from '../../render/carTextures.js';
 
@@ -67,9 +68,9 @@ export function buildEngine(mats) {
   // accessory drive on the right end
   const pulley = (r, w) => latheX([[0.0001, -w / 2], [r, -w / 2], [r - 0.004, 0], [r, w / 2], [0.0001, w / 2]].reverse(), 28);
   add(pulley(0.075, 0.03), mats.steel, 'crankPulley', [0.25, 0.06, -0.02]);
-  add(pulley(0.032, 0.025), mats.steel, 'altPulley', [0.25, 0.3, -0.16]);
+  add(pulley(0.032, 0.025), doubleSided(mats.steel), 'altPulley', [0.25, 0.3, -0.16]);
   add(pulley(0.05, 0.025), mats.steel, 'pumpPulley', [0.25, 0.22, 0.08]);
-  add(pulley(0.028, 0.02), mats.steel, 'idler', [0.25, 0.17, -0.1]);
+  add(pulley(0.028, 0.02), doubleSided(mats.steel), 'idler', [0.25, 0.17, -0.1]);
   const belt = [];
   const pulleys = [
     [0.06, -0.02, 0.078],
