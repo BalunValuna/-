@@ -1,0 +1,22 @@
+/** Camera presets for the car lab and the critic. Car front is -Z, driver side is -X. */
+export const VIEWS = {
+  front34: { pos: [-3.9, 1.55, -4.6], target: [0, 0.68, -0.1] },
+  rear34: { pos: [4.1, 1.7, 4.7], target: [0, 0.7, 0.1] },
+  front34r: { pos: [4.2, 1.2, -4.3], target: [0, 0.66, -0.2] },
+  side: { pos: [-9.5, 0.85, 0.06], target: [0, 0.74, 0.06], fov: 28 },
+  front: { pos: [0, 0.85, -9.5], target: [0, 0.72, 0], fov: 22 },
+  rear: { pos: [0, 0.9, 9.5], target: [0, 0.74, 0], fov: 22 },
+  top: { pos: [0, 11, 0.06], target: [0, 0, 0.06], fov: 26 },
+  low34: { pos: [-3.2, 0.45, -3.6], target: [0, 0.55, -0.3] },
+  hoodOpen: { pos: [-1.2, 2.3, -3.9], target: [0, 0.75, -1.3], state: 'hood' },
+  engineBay: { pos: [-0.5, 2.1, -2.7], target: [0, 0.6, -1.35], state: 'hood' },
+  doorsOpen: { pos: [-4.4, 1.6, -1.6], target: [0, 0.8, 0.2], state: 'doors' },
+  trunkOpen: { pos: [1.2, 2.1, 4.6], target: [0, 0.8, 1.7], state: 'trunk' },
+  driver: { pos: [-0.36, 1.13, 0.12], target: [-0.3, 0.98, -1.2], fov: 70, near: 0.01, ground: false },
+  dash: { pos: [0.1, 1.2, 0.35], target: [-0.1, 0.9, -0.7], fov: 60, near: 0.01, ground: false },
+  rearSeat: { pos: [0.0, 1.25, -0.55], target: [0.05, 0.75, 0.9], fov: 70, near: 0.01, ground: false },
+  gapHood: { pos: [-1.35, 1.25, -1.75], target: [-0.66, 0.86, -1.1], fov: 30 },
+  gapDoor: { pos: [-1.7, 1.05, -0.55], target: [-0.86, 0.75, -0.62], fov: 30 },
+  gapTrunk: { pos: [0.9, 1.6, 3.0], target: [0.5, 1.05, 2.0], fov: 30 },
+  under: { pos: [-3.5, -0.9, -1.5], target: [0, 0.3, 0], ground: false },
+};
