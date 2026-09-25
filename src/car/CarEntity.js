@@ -393,6 +393,10 @@ export class CarEntity {
     const r = v.body.rotation();
     this.root.position.set(t.x, t.y, t.z);
     this.root.quaternion.set(r.x, r.y, r.z, r.w);
+    // fresh root matrix now: seat cameras and hands must not lag a frame behind at speed
+    this.root.updateMatrix();
+    if (this.root.parent) this.root.matrixWorld.multiplyMatrices(this.root.parent.matrixWorld, this.root.matrix);
+    else this.root.matrixWorld.copy(this.root.matrix);
     const hub = new THREE.Vector3();
     for (const w of v.wheels) {
       const wheel = this.model.wheels[w.id];

@@ -35,6 +35,7 @@ export class WorldGen {
     this.n = new Noise(seed);
     this.n2 = new Noise(seed * 7 + 13);
     this.n3 = new Noise(seed * 13 + 101);
+    this.roadCache = new Map();
   }
 
   /** Lateral position of the road centre line at distance z. */
@@ -76,17 +77,33 @@ export class WorldGen {
     return h;
   }
 
-  /** Road surface height along the centre line (smoothed terrain). */
+  /** Large-scale terrain only (no dunes or ripples): what the road embankment is graded to. */
+  lowHeight(x, z) {
+    const n = this.n;
+    return n.fbm2(x * 0.0012, z * 0.0012, 4) * 26 + n.fbm2(x * 0.006, z * 0.006, 2) * 2.5;
+  }
+
+  /**
+   * Road surface height along the centre line: the low-frequency terrain under the road, low-pass
+   * filtered along z so the highway rolls gently instead of copying dune detail.
+   */
   roadY(z) {
-    const x = this.roadX(z);
+    const key = Math.round(z * 2);
+    const hit = this.roadCache.get(key);
+    if (hit !== undefined) return hit;
     let s = 0;
     let w = 0;
-    for (let k = -3; k <= 3; k++) {
-      const kw = 1 - Math.abs(k) / 4;
-      s += this.rawHeight(this.roadX(z + k * 40), z + k * 40) * kw;
+    for (let k = -5; k <= 5; k++) {
+      const kw = 1 - Math.abs(k) / 6;
+      const zz = key / 2 + k * 30;
+      s += this.lowHeight(this.roadX(zz), zz) * kw;
       w += kw;
     }
-    return s / w + 0.35 + 0 * x;
+    // the embankment flattens the land's swell: gentler grades, cuts and fills at the sides
+    const y = (s / w) * 0.72 + 0.35;
+    if (this.roadCache.size > 8192) this.roadCache.clear();
+    this.roadCache.set(key, y);
+    return y;
   }
 
   /**
