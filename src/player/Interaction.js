@@ -517,7 +517,7 @@ export class Interaction {
     const it = this.held;
     const light = it?.def?.tool === 'light';
     if (!light && this.flashlightOn) this.flashlightOn = false;
-    this.flash.intensity = this.flashlightOn ? 70 : 0;
+    this.flash.intensity = this.flashlightOn ? 26 : 0;
     if (it?.def?.tool === 'compass') {
       const face = it.root.getObjectByName('compassFace');
       if (face) face.rotation.y = -heading(this.game.camera);

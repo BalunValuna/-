@@ -225,7 +225,7 @@ export class UI {
   showSettings(from) {
     const tabs = ['graphics', 'audio', 'controls', 'game'];
     let tab = 'graphics';
-    const body = h('div');
+    const body = h('div', { class: 'set-body' });
     const tabBar = h(
       'div',
       { class: 'tabs' },
