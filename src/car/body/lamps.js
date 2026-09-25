@@ -153,7 +153,7 @@ export function buildHeadlightInternals(skin, mats, sign) {
   const turn = at(0.66, 0.04);
   if (turn) {
     const r = Math.min(0.024, turn.height * 0.36);
-    g.add(place(reflectorModule(mats, r, r * 0.8, mats.lamps.turn, 'turnSignal'), turn.c, forward));
+    g.add(place(reflectorModule(mats, r, r * 0.8, sign < 0 ? mats.lamps.turnL : mats.lamps.turnR, 'turnSignal'), turn.c, forward));
   }
   const guide = lightGuide(skin, frame, mats, frame.lo + span * 0.06, frame.lo + span * 0.8, 0.3, 'drl');
   if (guide) g.add(guide);
@@ -175,7 +175,7 @@ export function buildTaillightInternals(skin, mats, sign) {
   const slots = [
     [0.2, mats.lamps.reverse, 'reverse', 0.36],
     [0.47, mats.lamps.brake, 'brake', 0.44],
-    [0.74, mats.lamps.turnRear, 'turnSignalRear', 0.36],
+    [0.74, sign < 0 ? mats.lamps.turnRearL : mats.lamps.turnRearR, 'turnSignalRear', 0.36],
   ];
   for (const [u, bulb, name, k] of slots) {
     const s = at(u, 0.032);
