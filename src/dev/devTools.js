@@ -9,13 +9,14 @@ export function attachDevTools(game) {
   const STEP = 1 / 120;
   const dev = {
     /** Runs `seconds` of simulation with fixed driver inputs; returns telemetry samples. */
-    simulate(seconds, inputs = {}, { sampleEvery = 0.5, onSample = null } = {}) {
+    simulate(seconds, inputs = {}, { sampleEvery = 0.5, onSample = null, until = null } = {}) {
       const car = game.car;
       const samples = [];
       let t = 0;
       let nextSample = 0;
       let worldT = 0;
       while (t < seconds) {
+        if (until?.(car, t)) break;
         const inp = typeof inputs === 'function' ? inputs(t, car) : inputs;
         if (game.player.seat?.which === 'driver') car.drive({ forward: !!inp.forward, back: !!inp.back, handbrake: !!inp.handbrake, steer: inp.steer || 0 });
         else car.idleInputs();
@@ -48,6 +49,9 @@ export function attachDevTools(game) {
             skid: +v.skid.toFixed(2),
             load: v.wheels.map((w) => Math.round(w.Fz)),
             steer: +v.steerAngle.toFixed(3),
+            surf: v.wheels.map((w) => (w.contact ? (w.surface || '?')[0] : '-')).join(''),
+            yawRate: +(car.vehicle.body.angvel().y).toFixed(2),
+            offRoad: +(Math.abs(car.position.x + game.origin.x - game.world.gen.roadX(car.position.z + game.origin.z))).toFixed(1),
           };
           samples.push(s);
           onSample?.(s);
@@ -111,5 +115,6 @@ export function attachDevTools(game) {
     },
   };
   game.dev = dev;
+  game.THREE = THREE;
   return dev;
 }

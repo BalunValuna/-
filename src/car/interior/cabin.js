@@ -178,16 +178,20 @@ export function buildCabin(mats) {
   // ---- pillar trims (A, B, C) and sills
   for (const side of [-1, 1]) {
     const inset = (z, y, d) => greenSideX(z, y) - d;
-    const aPts = DLO.filter(([z, y]) => y > 0.99 && y < 1.37 && z < 0.0).map(([z, y]) => V(side * inset(z, y, 0.06), y - 0.02, z + 0.045));
-    add(sweepProfile(aPts, roundRectSection(0.075, 0.02, 0.009), { up: V(side, 0.4, 0) }), mats.lightTrim, 'aPillarTrim');
+    const aPts = DLO.filter(([z, y]) => y > 0.99 && y < 1.37 && z < 0.0).map(([z, y]) => V(side * inset(z, y, 0.052), y - 0.022, z + 0.04));
+    add(sweepProfile(aPts, roundRectSection(0.1, 0.032, 0.012), { up: V(side, 0.4, 0) }), mats.lightTrim, 'aPillarTrim');
+    // roof side rail cover: the headliner wraps down over the structural rail
+    const rail = [];
+    for (let z = -0.26; z <= 0.9 + 1e-6; z += 0.05) rail.push(V(side * (greenSideX(z, roofRailY.at(z)) - 0.045), roofRailY.at(z) - 0.032, z));
+    add(sweepProfile(rail, roundRectSection(0.08, 0.05, 0.02), { up: V(side * 0.3, 1, 0) }), mats.headliner, 'railCover');
     const bz = LAYOUT.bSeam(0.9) - 0.01;
     const bPts = [];
     for (let y = 0.95; y <= roofRailY.at(bz) - 0.04; y += 0.05) bPts.push(V(side * (greenSideX(bz, Math.max(y, beltY.at(bz) + 0.01)) - 0.075), y, bz));
     add(sweepProfile(bPts, roundRectSection(0.11, 0.03, 0.012), { up: V(side, 0, 0) }), mats.lightTrim, 'bPillarTrim');
     const lowB = [V(side * 0.745, 0.3, bz), V(side * 0.75, 0.96, bz)];
     add(sweepProfile(lowB, roundRectSection(0.1, 0.035, 0.012), { up: V(side, 0, 0) }), mats.trimPlastic, 'bPillarLower');
-    const cPts = DLO.filter(([z, y]) => z > 0.8 && y < 1.36 && y > 1.1).map(([z, y]) => V(side * inset(z, y, 0.07), y - 0.02, z - 0.06));
-    add(sweepProfile(cPts, roundRectSection(0.12, 0.022, 0.01), { up: V(side, 0.3, 0) }), mats.lightTrim, 'cPillarTrim');
+    const cPts = DLO.filter(([z, y]) => z > 0.8 && y < 1.36 && y > 0.97).map(([z, y]) => V(side * inset(z, y, 0.068), y - 0.02, z - 0.06));
+    add(sweepProfile(cPts, roundRectSection(0.16, 0.03, 0.012), { up: V(side, 0.3, 0) }), mats.lightTrim, 'cPillarTrim');
     // belt: stowed strap down the B-pillar
     add(sweepProfile([V(side * 0.72, 1.2, bz + 0.03), V(side * 0.72, 0.8, bz + 0.035), V(side * 0.71, 0.36, bz + 0.05)], roundRectSection(0.045, 0.004, 0.0015), { up: V(side, 0, 0) }), mats.satinBlack, 'seatbelt');
     const anchor = add(roundedBox(0.015, 0.06, 0.04, 0.006), mats.satinChrome, 'beltAnchor');

@@ -69,7 +69,7 @@ export class Vehicle {
       const cd = R.ColliderDesc.roundCuboid(c.half[0], c.half[1], c.half[2], c.radius)
         .setTranslation(...c.at)
         .setDensity(0)
-        .setFriction(0.35)
+        .setFriction(0.55)
         .setRestitution(0.05)
         .setCollisionGroups(groups(GROUP.CAR))
         .setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS)
@@ -226,7 +226,8 @@ export class Vehicle {
         w.len = Math.min(w.maxLen, w.len + dt * 2.5);
         continue;
       }
-      w.len = clamp(hit.timeOfImpact - w.radius, 0, w.maxLen);
+      const rawLen = hit.timeOfImpact - w.radius;
+      w.len = clamp(rawLen, 0, w.maxLen);
       w.grounded = true;
       grounded++;
       w.contact.set(mount.x - up.x * hit.timeOfImpact, mount.y - up.y * hit.timeOfImpact, mount.z - up.z * hit.timeOfImpact);
@@ -236,12 +237,17 @@ export class Vehicle {
       w.surfGrip = surf.grip;
       w.surfRoll = surf.roll;
       if (surf.kind === 'sand') sand++;
-      const compressV = (w.prevLen - w.len) / dt;
+      // A ray that jumps over a crest or a triangle edge in one step is not a real compression
+      // speed: clamp it, or the damper alone kicks the car into the air.
+      const compressV = clamp((w.prevLen - w.len) / dt, -S.maxSpeed, S.maxSpeed);
       const spring = w.axle.k * (w.freeLen - w.len);
       const damper = compressV * (compressV > 0 ? w.axle.bump : w.axle.rebound);
       let F = spring + damper;
-      if (w.len < 0.012) F += S.bumpStop * (0.012 - w.len);
-      w.suspForce = F;
+      // bump stop past full travel (the tyre squashing): stiff, but damped rather than springy,
+      // and bounded, so a hard landing is absorbed instead of catapulting the car
+      const pen = 0.012 - rawLen;
+      if (pen > 0) F += S.bumpStop * Math.min(pen, 0.06) + S.bumpDamp * Math.max(compressV, 0);
+      w.suspForce = Math.min(F, S.maxForce);
     }
     // anti-roll bars move load between the two wheels of an axle
     for (const [a, b] of [
@@ -359,15 +365,23 @@ export class Vehicle {
     }
   }
 
+  /**
+   * Keyboard-friendly steering. At speed, full input asks for the angle that holds the tyres near
+   * peak lateral grip on dry asphalt (kinematic angle for ~0.95 g plus the peak slip angle) instead
+   * of a fixed fraction of full lock, so a tap at 110 km/h is a lane change, not a spin into the
+   * dunes. Low-grip surfaces still break away, which is where slides and trips belong.
+   */
   updateSteering(dt, speedAbs) {
     const st = SPEC.steer;
+    const L = 2.6;
+    const v2 = Math.max(speedAbs * speedAbs, 1e-3);
+    const limit = Math.min(st.max, Math.atan((L * st.latG * 9.81) / v2) + st.peakSlip);
+    const target = this.input.steer * limit;
     const fade = 1 / (1 + speedAbs / st.speedFade);
-    const target = this.input.steer * st.max * lerp(0.3, 1, fade);
-    const rate = Math.abs(target) < Math.abs(this.steerAngle) ? st.returnRate : st.rate;
+    const rate = (Math.abs(target) < Math.abs(this.steerAngle) ? st.returnRate : st.rate) * (0.35 + 0.65 * fade);
     const d = target - this.steerAngle;
     this.steerAngle += clamp(d, -rate * dt, rate * dt);
     // Ackermann: the inner wheel turns more
-    const L = 2.6;
     const Tw = 1.48;
     const a = this.steerAngle;
     const inner = Math.abs(a) < 1e-4 ? a : Math.atan(L / (L / Math.tan(Math.abs(a)) - Tw / 2)) * Math.sign(a);

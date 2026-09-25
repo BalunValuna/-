@@ -1,0 +1,21 @@
+await start();
+game.dev.readyCar();
+await seat();
+const car = game.car;
+const lane = 1.8;
+game.dev.carOnRoad(3000, lane);
+game.env.cur.wet = 1;
+game.dev.simulate(1.5, {});
+game.dev.simulate(60, game.dev.follow(123, lane), { until: (c) => c.speedKmh() >= 120 });
+const rows = [];
+const swerve = (t) => ({ steer: t < 0.7 ? 1 : t < 1.4 ? -1 : t < 2.1 ? 0.5 : 0 });
+game.dev.simulate(4.5, swerve, { sampleEvery: 0.1, onSample: (s) => {
+  const p = car.position;
+  const gy = game.groundHeight(p.x, p.z);
+  const hit = game.physics.raycast({ x: p.x, y: p.y + 3, z: p.z }, { x: 0, y: -1, z: 0 }, 20, { filter: 1 | 2 | 4 | 8 | 16 | 32 | 64 });
+  const hy = hit ? p.y + 3 - hit.toi : null;
+  const chunk = game.world.terrain.chunks.get(game.world.terrain.key(Math.floor((p.x + game.origin.x) / 64), Math.floor((p.z + game.origin.z) / 64)));
+  rows.push(`${s.t} v${s.kmh} up${s.upY} carY${p.y.toFixed(2)} gen${gy?.toFixed(2)} ray${hy?.toFixed(2) ?? 'MISS'} owner:${hit?.owner?.kind ?? '-'} chunkCol:${!!chunk?.collider} [${s.load.join(',')}] off${s.offRoad} o(${game.origin.x},${game.origin.z})`);
+} });
+game.env.cur.wet = 0;
+return rows;

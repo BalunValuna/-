@@ -390,6 +390,7 @@ export class Game {
     if (s === 'menu') this.menuFrame(dt);
     else if (s === 'play') this.playFrame(dt);
     else if (s === 'pause' || s === 'journal' || s === 'dead' || s === 'won') this.idleFrame(dt);
+    if (this.env) this.gfx.setAdaptation(this.env.exposure ?? 1);
     this.ui.update(dt);
   }
 

@@ -1,4 +1,5 @@
 import { setHinge } from './body/body.js';
+import { backSided, doubleSided } from './materials.js';
 import { gaugeAngle } from '../render/gaugeTextures.js';
 
 /**
@@ -15,10 +16,14 @@ export function cloneCarModel(model, fromMats, toMats) {
   };
   walk(model.root, root);
   const m = (o) => map.get(o);
+  const own = ['paint', 'paintShell', 'paintInner'];
   const swap = new Map([
-    [fromMats.paint, toMats.paint],
-    [fromMats.paintShell, toMats.paintShell],
-    [fromMats.paintInner, toMats.paintInner],
+    ...own.flatMap((k) => [
+      [fromMats[k], toMats[k]],
+      // single/two-sided variants of the per-car materials follow the car too
+      [doubleSided(fromMats[k]), doubleSided(toMats[k])],
+      [backSided(fromMats[k]), backSided(toMats[k])],
+    ]),
     ...Object.keys(fromMats.lamps).map((k) => [fromMats.lamps[k], toMats.lamps[k]]),
   ]);
   root.traverse((o) => {
@@ -31,16 +36,16 @@ export function cloneCarModel(model, fromMats, toMats) {
   const corners = Object.fromEntries(Object.entries(model.chassis.corners || {}).map(([k, v]) => [k, m(v)]));
   const c = model.controls;
   // dashboard lighting materials are per car, otherwise every clone would light up together
-  const own = {};
+  const lit = {};
   for (const key of ['clusterMaterial', 'domeMaterial', 'radioMaterial']) {
     if (!c[key]) continue;
-    own[key] = c[key].clone();
+    lit[key] = c[key].clone();
     root.traverse((o) => {
-      if (o.isMesh && o.material === c[key]) o.material = own[key];
+      if (o.isMesh && o.material === c[key]) o.material = lit[key];
     });
   }
   const controls = {
-    ...own,
+    ...lit,
     needles: Object.fromEntries(
       Object.entries(c.needles || {}).map(([k, n]) => {
         const hub = m(n.object);

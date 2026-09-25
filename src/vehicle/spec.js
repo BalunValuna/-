@@ -19,7 +19,10 @@ export const SPEC = {
     droop: 0.12, // travel below it
     front: { k: 31400, bump: 1750, rebound: 2800, arb: 20000, rollCentre: 0.08 },
     rear: { k: 25500, bump: 1300, rebound: 2100, arb: 8000, rollCentre: 0.13 },
-    bumpStop: 160000,
+    bumpStop: 240000,
+    bumpDamp: 9000,
+    maxSpeed: 3.5, // m/s, fastest real compression/extension
+    maxForce: 26000, // N per corner (~2.2 g on that corner)
   },
   tyre: {
     // Pacejka-style shape factors: longitudinal peak near 10 % slip, lateral near 7 degrees
@@ -29,7 +32,7 @@ export const SPEC = {
     latC: 1.3,
     rolling: 0.012,
   },
-  steer: { max: 0.6, rate: 2.2, returnRate: 3.2, speedFade: 16 },
+  steer: { max: 0.6, rate: 2.2, returnRate: 3.2, speedFade: 16, latG: 0.95, peakSlip: 0.055 },
   brakes: { front: 1650, rear: 850, hand: 1900 },
   engine: {
     idle: 850,

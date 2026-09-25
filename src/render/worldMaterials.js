@@ -88,9 +88,9 @@ function asphaltTexture() {
   // shoulders gravel, lanes asphalt
   const total = 2 * (3.5 + 1.4);
   const px = (m) => (m / total) * W;
-  g.fillStyle = '#6f6a63';
+  g.fillStyle = '#7a7266';
   g.fillRect(0, 0, W, H);
-  g.fillStyle = '#3a3a3c';
+  g.fillStyle = '#504f4e';
   g.fillRect(px(1.4), 0, px(7), H);
   const img = g.getImageData(0, 0, W, H);
   for (let i = 0; i < img.data.length; i += 4) {

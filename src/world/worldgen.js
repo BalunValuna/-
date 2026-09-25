@@ -29,6 +29,9 @@ export const SURFACE_GRIP = {
   [SURFACE.CONCRETE]: { grip: 0.95, roll: 0.014 },
 };
 
+/** Distance from the road centre over which the terrain blends into the road embankment. */
+const ROAD_BLEND = 40;
+
 export class WorldGen {
   constructor(seed) {
     this.seed = seed;
@@ -57,23 +60,26 @@ export class WorldGen {
     return Math.atan2(this.roadDX(z), 1);
   }
 
-  /** Base terrain before the road is cut in. */
-  rawHeight(x, z) {
+  /** Base terrain before the road is cut in. `rx` = road centre x at this z (if known). */
+  rawHeight(x, z, rx = this.roadX(z)) {
     const n = this.n;
+    const d = Math.abs(x - rx);
     // wide rolling plains
     let h = n.fbm2(x * 0.0012, z * 0.0012, 4) * 26;
     h += n.fbm2(x * 0.006, z * 0.006, 3) * 4;
-    // dune fields: elongated ridges, stronger away from the road
+    // dune fields: elongated ridges; the highway corridor was graded, so they build up only
+    // some way off the road (a car that leaves the road meets sand, not a ramp)
     const duneMask = smoothstep(0.1, 0.55, n.noise2(x * 0.0009 + 40, z * 0.0009 - 12) * 0.5 + 0.5);
+    const corridor = 0.2 + 0.8 * smoothstep(25, 95, d);
     const dx = x * 0.012 + n.noise2(x * 0.004, z * 0.004) * 1.5;
     const dz = z * 0.004;
-    h += n.ridged2(dx, dz, 3) * 9 * duneMask;
+    h += n.ridged2(dx, dz, 3) * 9 * duneMask * corridor;
     // small ripples
     h += n.noise2(x * 0.08, z * 0.08) * 0.18;
     // distant buttes/mesas: flat topped rises far from the highway
     const m = n.noise2(x * 0.0022 + 91, z * 0.0022 - 17);
     const mesa = smoothstep(0.62, 0.7, m) * 38;
-    h += mesa * smoothstep(120, 260, Math.abs(x - this.roadX(z)));
+    h += mesa * smoothstep(120, 260, d);
     return h;
   }
 
@@ -116,17 +122,18 @@ export class WorldGen {
     return pad ? lerp(h, pad.h, pad.w) : h;
   }
 
-  baseHeight(x, z) {
-    const rx = this.roadX(z);
+  /** Terrain with the road embankment; `rx`/`ry` may be passed when sampling a whole row. */
+  baseHeight(x, z, rx = this.roadX(z), ry = null) {
     const d = Math.abs(x - rx);
-    const raw = this.rawHeight(x, z);
-    if (d > 30) return raw;
-    const ry = this.roadY(z);
-    const flat = d < ROAD.totalHalf + 0.5 ? 1 : 1 - smoothstep(ROAD.totalHalf + 0.5, 30, d);
+    const raw = this.rawHeight(x, z, rx);
+    if (d > ROAD_BLEND) return raw;
+    const flat = d < ROAD.totalHalf + 0.5 ? 1 : 1 - smoothstep(ROAD.totalHalf + 0.5, ROAD_BLEND, d);
     // slight crown/camber: shoulders a little lower than the centre
     const crown = -(clamp(d / ROAD.totalHalf, 0, 1) ** 2) * 0.08;
-    const ditch = d > ROAD.totalHalf && d < 12 ? -Math.sin(((d - ROAD.totalHalf) / (12 - ROAD.totalHalf)) * Math.PI) * 0.45 : 0;
-    return lerp(raw, ry + crown, flat) + ditch * (1 - flat * 0.3);
+    // a shallow drainage swale, no deeper than a tyre can roll through: a steep V-ditch launched
+    // cars that left the road at speed
+    const swale = d > ROAD.totalHalf + 1 && d < 16 ? -Math.sin(((d - ROAD.totalHalf - 1) / (15 - ROAD.totalHalf)) * Math.PI) * 0.16 : 0;
+    return lerp(raw, (ry ?? this.roadY(z)) + crown, flat) + swale;
   }
 
   /** Distance from the road centre and the surface type at (x, z). */

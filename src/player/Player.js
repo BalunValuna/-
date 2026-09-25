@@ -174,7 +174,7 @@ export class Player {
     this.seat = { car, which, eye: seatInfo.eye, exit: seatInfo.exit };
     this.collider.setEnabled(false);
     this.seatYaw = 0;
-    this.seatPitch = -0.08;
+    this.seatPitch = -0.05;
     this.vel.set(0, 0, 0);
     if (which === 'driver') car.driver = this;
   }

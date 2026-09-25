@@ -20,6 +20,20 @@ export function doubleSided(mat) {
   return m;
 }
 
+const backSidedCache = new WeakMap();
+
+/** Variant drawing only back faces: the reverse side of a panel gets its own material. */
+export function backSided(mat) {
+  let m = backSidedCache.get(mat);
+  if (!m) {
+    m = mat.clone();
+    m.side = THREE.BackSide;
+    m.name = `${mat.name}Back`;
+    backSidedCache.set(mat, m);
+  }
+  return m;
+}
+
 function makeShared() {
   const std = (o) => new THREE.MeshStandardMaterial(o);
   const phys = (o) => new THREE.MeshPhysicalMaterial(o);

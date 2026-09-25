@@ -20,12 +20,22 @@ import { loopFrames } from './loops.js';
  * @param {Function} [o.dir]          (p, n) => flange direction (default -n)
  * @param {number} [o.thickness]      sheet thickness; 0 = single sided
  * @param {Function} [o.perLoop]      (info) => partial options for one loop (info: {index, length, points})
+ * @param {string} [o.flangeTag]      tag for this loop's flange triangles (past the roll), in
+ *                                    `outer.tags` / `inner.tags` (Map: triangle index → tag), so a
+ *                                    caller can give e.g. window-opening flanges a seal material
  * @returns {{outer: MeshData, inner: MeshData, ends: Array<{points: THREE.Vector3[], normals: THREE.Vector3[]}>}}
  */
 export function hemPanel(skin, opts = {}) {
   const base = { roll: 0.0025, depth: 0.015, dir: null, thickness: 0.0012, rollSteps: 3, profile: null, perLoop: null, ...opts };
   const outer = skin.clone();
   const inner = new MeshData();
+  outer.tags = new Map();
+  inner.tags = new Map();
+  const tagQuad = (mesh, tag, add) => {
+    const t0 = mesh.indices.length / 3;
+    add();
+    if (tag) for (let t = t0; t < mesh.indices.length / 3; t++) mesh.tags.set(t, tag);
+  };
   const ends = [];
   const loops = boundaryLoops(skin).sort((a, b) => b.length - a.length);
 
@@ -61,7 +71,7 @@ export function hemPanel(skin, opts = {}) {
     );
     for (let k = 0; k < f.n; k++) {
       const k2 = (k + 1) % f.n;
-      for (let s = 0; s < steps - 1; s++) outer.addQuad(ids[k][s], ids[k][s + 1], ids[k2][s + 1], ids[k2][s]);
+      for (let s = 0; s < steps - 1; s++) tagQuad(outer, s >= o.rollSteps ? o.flangeTag : null, () => outer.addQuad(ids[k][s], ids[k][s + 1], ids[k2][s + 1], ids[k2][s]));
     }
     const last = steps - 1;
     ends.push({ points: rings.map((r) => r[last]), normals: ringNormals.map((r) => r[last]), index });
@@ -76,7 +86,7 @@ export function hemPanel(skin, opts = {}) {
       );
       for (let k = 0; k < f.n; k++) {
         const k2 = (k + 1) % f.n;
-        for (let s = 0; s < steps - 1; s++) inner.addQuad(iid[k][s], iid[k2][s], iid[k2][s + 1], iid[k][s + 1]);
+        for (let s = 0; s < steps - 1; s++) tagQuad(inner, s >= o.rollSteps ? o.flangeTag : null, () => inner.addQuad(iid[k][s], iid[k2][s], iid[k2][s + 1], iid[k][s + 1]));
       }
       // closing strip at the profile end
       const endIds = rings.map((pts, k) => {
@@ -89,7 +99,7 @@ export function hemPanel(skin, opts = {}) {
       });
       for (let k = 0; k < f.n; k++) {
         const k2 = (k + 1) % f.n;
-        outer.addQuad(endIds[k][0], endIds[k][1], endIds[k2][1], endIds[k2][0]);
+        tagQuad(outer, o.flangeTag, () => outer.addQuad(endIds[k][0], endIds[k][1], endIds[k2][1], endIds[k2][0]));
       }
     }
   });

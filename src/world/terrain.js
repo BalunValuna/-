@@ -34,23 +34,13 @@ export class Terrain {
     return `${cx},${cz}`;
   }
 
-  /** Height sampler for one z row with the road sample cached. */
+  /** Height sampler for one z row with the road sample cached (same rule as WorldGen.height). */
   row(z) {
     const g = this.gen;
     const rx = g.roadX(z);
     const ry = g.roadY(z);
-    const base = (x) => {
-      const d = Math.abs(x - rx);
-      const raw = g.rawHeight(x, z);
-      if (d > 30) return raw;
-      const flat = d < ROAD.totalHalf + 0.5 ? 1 : 1 - smoothstep(ROAD.totalHalf + 0.5, 30, d);
-      const crown = -(clamp(d / ROAD.totalHalf, 0, 1) ** 2) * 0.08;
-      const ditch = d > ROAD.totalHalf && d < 12 ? -Math.sin(((d - ROAD.totalHalf) / (12 - ROAD.totalHalf)) * Math.PI) * 0.45 : 0;
-      return raw + (ry + crown - raw) * flat + ditch * (1 - flat * 0.3);
-    };
-    // building plots are levelled (same rule as WorldGen.height)
     return (x) => {
-      const h = base(x);
+      const h = g.baseHeight(x, z, rx, ry);
       const pad = g.padAt?.(x, z);
       return pad ? h + (pad.h - h) * pad.w : h;
     };
@@ -154,7 +144,10 @@ export class Terrain {
         const surf = this.gen.surface(wx, wz);
         const tint = this.gen.n3.noise2(wx * 0.05, wz * 0.05) * 0.5 + 0.5;
         c.copy(sand).lerp(dirt, tint * 0.45);
-        if (surf === SURFACE.GRAVEL) c.lerp(gravel, 0.7);
+        // compacted verge along the road, fading into sand over a few noisy metres
+        const d = Math.abs(wx - this.gen.roadX(wz));
+        const edge = ROAD.totalHalf + 2.2 + this.gen.n2.noise2(wx * 0.15, wz * 0.15) * 1.6;
+        c.lerp(gravel, (1 - smoothstep(ROAD.totalHalf - 0.5, edge, d)) * 0.55);
         if (surf === SURFACE.ROCK) c.lerp(rock, 0.5);
         c.lerp(rock, smoothstep(0.35, 0.9, slope));
         col[v * 3] = c.r;
@@ -259,7 +252,8 @@ export class Terrain {
     for (let i = 0; i < pts.length - 1; i++) {
       for (let k = 0; k < m - 1; k++) {
         const a = i * m + k;
-        idx.push(a, a + 1, a + m, a + 1, a + m + 1, a + m);
+        // counter-clockwise seen from above (normals up)
+        idx.push(a, a + m, a + 1, a + 1, a + m, a + m + 1);
       }
     }
     const geo = new THREE.BufferGeometry();

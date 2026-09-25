@@ -33,8 +33,8 @@ export class Renderer {
     addEventListener('resize', () => this.resize());
     settings.on('change', (k) => {
       if (k === 'quality' || k === 'renderScale') this.applyQuality();
-      if (k === 'brightness') r.toneMappingExposure = settings.get('brightness');
     });
+    this.adapt = 1;
     r.toneMappingExposure = settings.get('brightness');
   }
 
@@ -83,6 +83,12 @@ export class Renderer {
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
     }
+  }
+
+  /** Scene exposure: the user's brightness times the environment's eye adaptation. */
+  setAdaptation(k) {
+    this.adapt = k;
+    this.renderer.toneMappingExposure = settings.get('brightness') * k;
   }
 
   /** Main scene (with bloom when enabled), then the view-model overlay on a cleared depth buffer. */

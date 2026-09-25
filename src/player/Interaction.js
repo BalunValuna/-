@@ -32,7 +32,7 @@ export class Interaction {
     this.progress = null;
     this.use = null;
     this.flashlightOn = false;
-    this.flash = new THREE.SpotLight(0xfff0d8, 0, 38, 0.42, 0.45, 1.4);
+    this.flash = new THREE.SpotLight(0xfff0d8, 0, 45, 0.42, 0.5, 2);
     this.flash.castShadow = false;
     game.camera.add(this.flash);
     game.camera.add(this.flash.target);
@@ -517,7 +517,7 @@ export class Interaction {
     const it = this.held;
     const light = it?.def?.tool === 'light';
     if (!light && this.flashlightOn) this.flashlightOn = false;
-    this.flash.intensity = this.flashlightOn ? 30 : 0;
+    this.flash.intensity = this.flashlightOn ? 70 : 0;
     if (it?.def?.tool === 'compass') {
       const face = it.root.getObjectByName('compassFace');
       if (face) face.rotation.y = -heading(this.game.camera);

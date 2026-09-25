@@ -209,6 +209,53 @@ function defectSources(limit = 12) {
   return { total, top };
 }
 
+/** Body paint visible directly (not through glass) from the current view, by mesh. */
+function paintSources(limit = 12) {
+  const prevBg = scene.background;
+  const prevGround = ground.visible;
+  const meshes = debug.applyPaintIds(model.root);
+  scene.background = new THREE.Color(0, 0, 0);
+  ground.visible = false;
+  const prevTone = renderer.toneMapping;
+  renderer.toneMapping = THREE.NoToneMapping;
+  render();
+  const w = renderer.domElement.width;
+  const h = renderer.domElement.height;
+  const gl = renderer.getContext();
+  const px = new Uint8Array(w * h * 4);
+  gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const counts = new Map();
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d');
+  const out = g.createImageData(w, h);
+  for (let i = 0; i < px.length; i += 4) {
+    const hit = px[i + 2] === 255;
+    const id = px[i] | (px[i + 1] << 8);
+    if (hit && id > 0 && id <= meshes.length) counts.set(id, (counts.get(id) || 0) + 1);
+    // flip rows (readPixels is bottom-up)
+    const p = i / 4;
+    const o = ((h - 1 - Math.floor(p / w)) * w + (p % w)) * 4;
+    out.data[o] = hit ? 255 : 30;
+    out.data[o + 1] = hit ? 0 : 30;
+    out.data[o + 2] = hit ? 255 : 30;
+    out.data[o + 3] = 255;
+  }
+  g.putImageData(out, 0, 0);
+  renderer.toneMapping = prevTone;
+  debug.apply(model.root, 'none');
+  scene.background = prevBg;
+  ground.visible = prevGround;
+  let total = 0;
+  for (const n of counts.values()) total += n;
+  const top = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id, n]) => ({ px: n, mesh: describe(meshes[id - 1]) }));
+  return { total, pct: +((100 * total) / (w * h)).toFixed(2), top, image: c.toDataURL('image/png') };
+}
+
 /** Meshes under canvas pixels (x, y from the top-left), nearest first. */
 const raycaster = new THREE.Raycaster();
 function pick(points) {
@@ -239,6 +286,7 @@ window.lab = {
   snap,
   analyze,
   defectSources,
+  paintSources,
   pick,
   setCamera: (pos, target, fov = 35) => {
     camera.fov = fov;

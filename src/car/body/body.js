@@ -128,16 +128,24 @@ export function buildBody(mats) {
         perLoop: ({ index }) =>
           index === 0
             ? { profile: doorProfile }
-            : { profile: (p) => (aboveBelt(p, 0.02) ? [[0, 0.03], [0, 0.031], [0, 0.032]] : [[0, 0.03], [-0.001, 0.06], [-0.001, 0.096]]) },
+            : {
+                profile: (p) => (aboveBelt(p, 0.02) ? [[0, 0.03], [0, 0.031], [0, 0.032]] : [[0, 0.03], [-0.001, 0.06], [-0.001, 0.096]]),
+                // the window opening is lined with rubber (glass run channel, inner belt seal)
+                flangeTag: 'seal',
+              },
       });
       // gloss black cover on the B-pillar part of the window frame
-      const split = outer.partition((x, y, z) =>
-        y > beltY.at(z) + 0.006 && Math.abs(z - LAYOUT.bSeam(y)) < 0.05 ? 'pillar' : 'paint',
+      const split = outer.partition((x, y, z, t) =>
+        outer.tags.get(t) ?? (y > beltY.at(z) + 0.006 && Math.abs(z - LAYOUT.bSeam(y)) < 0.05 ? 'pillar' : 'paint'),
       );
       add(g, split.get('paint'), mats.paint, id);
       add(g, split.get('pillar'), mats.glossBlack, `${id}_pillar`);
-      add(g, inner, mats.paintInner, `${id}_inner`);
-      add(g, doorInnerPanel(ends, sign), mats.paintInner, `${id}_innerPanel`);
+      if (split.get('seal')) add(g, split.get('seal'), mats.seal, `${id}_seal`);
+      const innerSplit = inner.partition((x, y, z, t) => inner.tags.get(t) ?? 'metal');
+      add(g, innerSplit.get('metal'), mats.paintInner, `${id}_inner`);
+      if (innerSplit.get('seal')) add(g, innerSplit.get('seal'), mats.seal, `${id}_innerSeal`);
+      // inner door skin: covered by the trim panel in a real car, so it reads as trim here
+      add(g, doorInnerPanel(ends, sign), mats.trimPlastic, `${id}_innerPanel`);
       g.add(buildDoorDetails(mats, door, sign));
       parts[id] = g;
       add(jambs, twoSided(doorJamb(skin), 0.0012), mats.paint, `${id}_jamb`);

@@ -4,7 +4,8 @@ import { mesh, roundedBox, sweepProfile, roundRectSection, latheY } from '../../
 import { hoodEdgeX, DLO, LAYOUT, roofRailY } from './regions.js';
 import { lowerTopY, beltY, greenSideX, frontZ, rearZ } from './shape.js';
 import { CAR } from '../design.js';
-import { doubleSided } from '../materials.js';
+import { backSided, doubleSided } from '../materials.js';
+import { topPoint } from './surface.js';
 
 /**
  * Body-in-white structure under the skin ("каркас"): floor, sills, firewall, engine bay aprons
@@ -70,8 +71,9 @@ export function buildStructure(mats) {
   for (let x = -APRON_X; x <= APRON_X + 1e-6; x += APRON_X / 6) {
     fw.push([V(x, FLOOR_Y + 0.02, FIREWALL_Z + 0.2), V(x, 0.42, FIREWALL_Z + 0.02), V(x, 0.86, FIREWALL_Z), V(x, 0.905, FIREWALL_Z - 0.04)]);
   }
-  add(loft(fw), mats.paint, 'firewall');
-  add(loft(fw, { flip: true }), mats.paintInner, 'firewallCabin');
+  // the loft faces the cabin (insulation pad under carpet); the flipped copy is the bay side
+  add(loft(fw), mats.carpet, 'firewallCabin');
+  add(loft(fw, { flip: true }), mats.paintInner, 'firewall');
   // cowl plenum under the cowl panel
   const plenum = [];
   for (let x = -0.72; x <= 0.72 + 1e-6; x += 0.08) {
@@ -167,10 +169,11 @@ export function buildStructure(mats) {
     const cPts = DLO.filter(([z, y]) => z > 0.75 && y < 1.38).map(([z, y]) => V(side * inset([z, y], 0.04), y - 0.015, z - 0.03));
     add(sweepProfile(cPts, roundRectSection(0.07, 0.035, 0.01)), mats.paint, 'cPillar');
   }
+  // roof bows sit in the gap between the roof skin and the headliner (hidden from the cabin)
   for (const z of [-0.14, 0.38, 0.82]) {
     const pts = [];
-    for (let x = -0.62; x <= 0.62 + 1e-6; x += 0.08) pts.push(V(x, roofRailY.at(z) + 0.04 - 0.06 * (x / 0.62) ** 2 - 0.02, z));
-    add(sweepProfile(pts, roundRectSection(0.05, 0.02, 0.006)), mats.paint, 'roofBow');
+    for (let x = -0.62; x <= 0.62 + 1e-6; x += 0.08) pts.push(V(x, (topPoint(x, z)?.y ?? roofRailY.at(z) + 0.02) - 0.017, z));
+    add(sweepProfile(pts, roundRectSection(0.05, 0.012, 0.004)), mats.paint, 'roofBow');
   }
 
   // ---------------------------------------------------------------- rear structure
@@ -217,7 +220,9 @@ export function buildStructure(mats) {
     (u, v, w, out) => out.set(u, v, 1.3 - (v - trunkY) * 0.3),
     { normal: V(0, 0, 1) },
   );
-  add(bh, doubleSided(mats.paint), 'rearBulkhead');
+  // painted on the trunk side (front faces), carpeted on the cabin side like a real trunk-through
+  add(bh, mats.paint, 'rearBulkhead');
+  add(bh, backSided(mats.carpet), 'rearBulkheadTrim');
 
   g.traverse((o) => {
     if (o.isMesh) {

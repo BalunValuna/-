@@ -62,9 +62,35 @@ export class DebugMaterials {
       if (!o.isMesh) return;
       if (!this.saved.has(o)) this.saved.set(o, o.material);
       const orig = this.saved.get(o);
-      const twoSided = o.userData.glass || orig.side === THREE.DoubleSide;
+      // back-sided materials show their back faces on purpose, like double-sided ones
+      const twoSided = o.userData.glass || orig.side !== THREE.FrontSide;
       meshes.push(o);
       o.material = twoSided ? this.glass : this.idMaterial(meshes.length);
+    });
+    return meshes;
+  }
+
+  /**
+   * Paint exposure pass: body-paint meshes draw both faces in their id colour, glass is opaque
+   * black and everything else black, so id pixels are paint seen directly (not through glass).
+   */
+  applyPaintIds(root) {
+    const meshes = [];
+    const black = (this.black ??= new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide }));
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      if (!this.saved.has(o)) this.saved.set(o, o.material);
+      const orig = this.saved.get(o);
+      if (orig.name?.startsWith('paint')) {
+        meshes.push(o);
+        const m = this.idMaterial(meshes.length).clone();
+        m.fragmentShader = 'uniform vec3 idColor; void main() { gl_FragColor = vec4(idColor, 1.0); }';
+        m.side = orig.side;
+        o.material = m;
+      } else if (orig.side !== THREE.DoubleSide && !o.userData.glass) {
+        // occluders keep their culling, so a single-sided trim only hides what is behind its face
+        o.material = (this.blackBySide ??= {})[orig.side] ??= new THREE.MeshBasicMaterial({ color: 0x000000, side: orig.side });
+      } else o.material = black;
     });
     return meshes;
   }
@@ -76,7 +102,7 @@ export class DebugMaterials {
       if (!mode || mode === 'none') o.material = this.saved.get(o);
       else if (mode === 'defects') {
         const orig = this.saved.get(o);
-        o.material = o.userData.glass ? this.glass : orig.side === THREE.DoubleSide ? this.defectsTwoSided : this.defects;
+        o.material = o.userData.glass ? this.glass : orig.side !== THREE.FrontSide ? this.defectsTwoSided : this.defects;
       }
       else if (mode === 'normals') o.material = this.normals;
       else if (mode === 'wire') o.material = this.wire;

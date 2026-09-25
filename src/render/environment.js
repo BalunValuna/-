@@ -65,8 +65,9 @@ export class Environment {
     this.envSky.scale.setScalar(100);
     // The env map must not contain the sun disk (radiance in the thousands): it would flood every
     // PBR material with light. The visible sky is only clamped so bloom stays a glow.
-    limitSky(this.envSky.material, { sunDisk: false, max: 3 });
-    limitSky(this.sky.material, { sunDisk: true, max: 2.6 });
+    limitSky(this.envSky.material, { sunDisk: false, max: 3, scale: 1 });
+    // the visible sky is scaled down so noon reads as deep blue instead of washed-out white
+    limitSky(this.sky.material, { sunDisk: true, max: 2.6, scale: 0.62 });
     this.envScene.add(this.envSky);
     this.envTarget = null;
     this.envTimer = 0;
@@ -82,19 +83,19 @@ export class Environment {
     this.weatherBlend = Math.max(blend, 0.01);
   }
 
-  /** Sun elevation/azimuth for the current time (desert summer: 5:40 sunrise, 20:20 sunset). */
+  /**
+   * Sun and moon directions from a simple solar model (latitude 34°N, midsummer, solar noon at
+   * 13:05): sunrise ~6:10, sunset ~20:00, civil dusk ~20:30. The journey heads east (+z), north is
+   * +x. Continuous through the night, so twilight fades naturally.
+   */
   computeSun() {
-    const t = this.time;
-    const dayFrac = (t - 5.67) / (20.33 - 5.67);
-    const elev = Math.sin(dayFrac * Math.PI) * THREE.MathUtils.degToRad(68) - (dayFrac < 0 || dayFrac > 1 ? 0.35 : 0);
-    const az = Math.PI * 0.5 + dayFrac * Math.PI + 0.35;
-    this.sunDir.set(Math.cos(elev) * Math.cos(az), Math.sin(elev), Math.cos(elev) * Math.sin(az));
-    const mt = (t + 12) % 24;
-    const mFrac = (mt - 5.67) / (20.33 - 5.67);
-    const mElev = Math.sin(mFrac * Math.PI) * THREE.MathUtils.degToRad(55);
-    const mAz = Math.PI * 0.5 + mFrac * Math.PI + 0.5;
-    this.moonDir.set(Math.cos(mElev) * Math.cos(mAz), Math.sin(mElev), Math.cos(mElev) * Math.sin(mAz));
-    return elev;
+    const lat = THREE.MathUtils.degToRad(34);
+    const dec = THREE.MathUtils.degToRad(19);
+    const H = ((this.time - 13.08) / 24) * Math.PI * 2;
+    solarDir(this.sunDir, H, dec, lat);
+    // moon: a waxing gibbous a few hours behind the sun on the opposite side of the sky
+    solarDir(this.moonDir, H - Math.PI * 0.82, -dec * 0.6, lat);
+    return Math.asin(clamp(this.sunDir.y, -1, 1));
   }
 
   update(dt, focus) {
@@ -124,40 +125,51 @@ export class Environment {
     for (const key of Object.keys(this.cur)) this.cur[key] = lerp(this.cur[key], this.target[key], k);
 
     const elev = this.computeSun();
-    const day = smoothstep(-0.12, 0.12, elev);
+    this.elev = elev;
+    const sunVis = smoothstep(-0.035, 0.05, elev);
+    // skylight outlives the sun: civil and nautical twilight still light the land a little
+    const day = smoothstep(-0.2, 0.12, elev);
     this.night = 1 - day;
-    const golden = smoothstep(0.5, 0.05, elev) * day;
+    const golden = smoothstep(0.42, 0.0, elev) * sunVis;
 
     // sky shader
     const u = this.sky.material.uniforms;
     u.sunPosition.value.copy(this.sunDir);
-    u.turbidity.value = lerp(2.6, 9, this.cur.cloud) + this.cur.sand * 8;
-    u.rayleigh.value = lerp(1.1, 0.5, this.cur.cloud) + golden * 0.8;
-    u.mieCoefficient.value = 0.004 + this.cur.sand * 0.02;
+    u.turbidity.value = lerp(2.4, 9, this.cur.cloud) + this.cur.sand * 8;
+    u.rayleigh.value = lerp(1.2, 0.5, this.cur.cloud) + golden * 0.9;
+    u.mieCoefficient.value = 0.0035 + this.cur.sand * 0.02;
     u.mieDirectionalG.value = 0.82;
+    u.cloudCoverage.value = 0;
+    u.nightAmt.value = this.night * (1 - this.cur.cloud * 0.5);
+    u.glowAmt.value = smoothstep(-0.22, -0.02, elev) * smoothstep(0.08, -0.02, elev) * (1 - this.cur.cloud * 0.7);
     this.sky.visible = true;
 
-    // lights
+    // lights: a strong sun over a modest sky fill gives the desert real contrast and shadows
     const cloudDim = lerp(1, 0.3, this.cur.cloud) * this.cur.sun;
-    const sunColor = new THREE.Color().setHSL(0.09 - golden * 0.03, 0.6 + golden * 0.3, 0.6 + (1 - golden) * 0.35);
     const moonUp = clamp01(this.moonDir.y * 3);
-    if (day > 0.02) {
-      this.sun.color.copy(sunColor);
-      this.sun.intensity = 3.2 * day * cloudDim;
+    const sunI = 3.8 * sunVis * cloudDim;
+    const moonI = 0.2 * moonUp * (1 - this.cur.cloud * 0.75);
+    if (sunI >= moonI) {
+      this.sun.color.setHSL(0.085 - golden * 0.03, 0.55 + golden * 0.35, 0.62 + (1 - golden) * 0.3);
+      this.sun.intensity = sunI;
       this.lightDir = this.sunDir;
     } else {
-      this.sun.color.setRGB(0.55, 0.65, 0.9);
-      this.sun.intensity = 0.22 * moonUp * (1 - this.cur.cloud * 0.7);
+      this.sun.color.setRGB(0.62, 0.72, 1.0);
+      this.sun.intensity = moonI;
       this.lightDir = this.moonDir;
     }
-    const skyTint = new THREE.Color().setHSL(0.58, 0.35, 0.55).lerp(new THREE.Color(0x0b1224), this.night);
-    const groundTint = new THREE.Color(0x9a7650).lerp(new THREE.Color(0x0a0908), this.night);
+    const skyTint = new THREE.Color(0x9cbde6).lerp(new THREE.Color(0xf0b890), golden * 0.35).lerp(new THREE.Color(0x1a2848), this.night);
+    const groundTint = new THREE.Color(0x8a6a48).lerp(new THREE.Color(0x0c0b0a), this.night);
     this.hemi.color.copy(skyTint);
     this.hemi.groundColor.copy(groundTint);
-    this.hemi.intensity = lerp(0.08, 0.75, day) * lerp(1, 0.75, this.cur.cloud) + this.cur.sand * 0.3 * day;
+    this.hemi.intensity = lerp(0.1, 0.36, day) * lerp(1, 1.4, this.cur.cloud) + this.cur.sand * 0.3 * day;
+
+    // eye adaptation: exposure rises at night so moonlight and headlights read, and a little
+    // under overcast skies
+    this.exposure = lerp(0.86, 2.7, smoothstep(0.1, -0.2, elev)) * lerp(1, 1.15, this.cur.cloud * day);
 
     // fog colour follows the horizon; sandstorm tints it orange
-    const horizon = new THREE.Color(0xd2dde6).lerp(new THREE.Color(0xe7b186), golden * 0.8).lerp(new THREE.Color(0x05070c), this.night * 0.97);
+    const horizon = new THREE.Color(0xc9d6e2).lerp(new THREE.Color(0xe7b186), golden * 0.8).lerp(new THREE.Color(0x0a0f1c), this.night * 0.97);
     horizon.lerp(new THREE.Color(0xb98a5a).multiplyScalar(lerp(0.12, 1, day)), this.cur.sand);
     horizon.lerp(new THREE.Color(0x8a9096).multiplyScalar(lerp(0.1, 1, day)), this.cur.rain * 0.6);
     this.scene.fog.color.copy(horizon);
@@ -219,13 +231,14 @@ export class Environment {
     this.envTimer = 2;
     const u = this.envSky.material.uniforms;
     const su = this.sky.material.uniforms;
-    for (const k of ['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG']) u[k].value = su[k].value;
+    for (const k of ['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG', 'cloudCoverage', 'nightAmt', 'glowAmt']) u[k].value = su[k].value;
     u.sunPosition.value.copy(this.sunDir);
     this.envScene.background = null;
     const old = this.envTarget;
     this.envTarget = this.pmrem.fromScene(this.envScene, 0, 0.1, 200);
     this.scene.environment = this.envTarget.texture;
-    this.baseEnvIntensity = lerp(0.05, 1, 1 - this.night) * lerp(1, 0.6, this.cur.cloud);
+    // the sky map is a fill light only; the sun (a directional light) carries the key light
+    this.baseEnvIntensity = lerp(0.04, 0.6, 1 - this.night) * lerp(1, 0.75, this.cur.cloud);
     this.scene.environmentIntensity = this.baseEnvIntensity;
     old?.dispose();
   }
@@ -236,12 +249,40 @@ export class Environment {
   }
 }
 
-function limitSky(material, { sunDisk, max }) {
-  if (material.uniforms.showSunDisc) material.uniforms.showSunDisc.value = sunDisk ? 1 : 0;
+/**
+ * Patches a Sky material: clamps its HDR output (the sun disk alone is in the thousands) and adds
+ * a moonlit night gradient plus a twilight glow on the sun's side after sunset, where the
+ * scattering model goes black.
+ */
+function limitSky(material, { sunDisk, max, scale }) {
+  const uni = material.uniforms;
+  if (uni.showSunDisc) uni.showSunDisc.value = sunDisk ? 1 : 0;
+  uni.nightAmt = { value: 0 };
+  uni.glowAmt = { value: 0 };
   material.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );', `gl_FragColor = vec4( min( texColor, vec3( ${max.toFixed(1)} ) ), 1.0 );`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('uniform float showSunDisc;', 'uniform float showSunDisc;\nuniform float nightAmt;\nuniform float glowAmt;')
+      .replace(
+        'gl_FragColor = vec4( texColor, 1.0 );',
+        `float upN = max( direction.y, 0.0 );
+        vec3 nightSky = mix( vec3( 0.0105, 0.0135, 0.022 ), vec3( 0.0022, 0.0032, 0.0068 ), pow( upN, 0.45 ) );
+        vec2 hs = normalize( vSunDirection.xz + vec2( 1e-5 ) );
+        vec2 hd = normalize( direction.xz + vec2( 1e-5 ) );
+        float toward = max( dot( hs, hd ), 0.0 );
+        float glow = ( 0.35 + 0.65 * pow( toward, 4.0 ) ) * exp( -upN * 7.0 );
+        texColor = texColor * ${scale.toFixed(2)} + nightSky * nightAmt + vec3( 0.075, 0.038, 0.02 ) * glow * glowAmt;
+        gl_FragColor = vec4( min( texColor, vec3( ${max.toFixed(1)} ) ), 1.0 );`,
+      );
   };
-  material.customProgramCacheKey = () => `sky-${sunDisk}-${max}`;
+  material.customProgramCacheKey = () => `sky2-${sunDisk}-${max}-${scale}`;
+}
+
+/** Direction to a celestial body for hour angle H, declination dec at latitude lat (+x north, +z east). */
+function solarDir(out, H, dec, lat) {
+  const east = -Math.cos(dec) * Math.sin(H);
+  const north = Math.sin(dec) * Math.cos(lat) - Math.cos(dec) * Math.cos(H) * Math.sin(lat);
+  const up = Math.sin(dec) * Math.sin(lat) + Math.cos(dec) * Math.cos(H) * Math.cos(lat);
+  return out.set(north, up, east).normalize();
 }
 
 function makeCloudDome() {

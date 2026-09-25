@@ -11,8 +11,8 @@ import { clamp, clamp01, lerp } from '../core/math.js';
  */
 const PASSIVE_PARTS = new Set(Object.keys(PARTS));
 export const SEATS = {
-  driver: { eye: new THREE.Vector3(-0.36, 1.13, 0.16), exit: new THREE.Vector3(-1.45, 0.2, 0.05), door: 'frontDoor_L', seat: 'seat_FL' },
-  passenger: { eye: new THREE.Vector3(0.36, 1.13, 0.16), exit: new THREE.Vector3(1.45, 0.2, 0.05), door: 'frontDoor_R', seat: 'seat_FR' },
+  driver: { eye: new THREE.Vector3(-0.36, 1.175, 0.2), exit: new THREE.Vector3(-1.45, 0.2, 0.05), door: 'frontDoor_L', seat: 'seat_FL' },
+  passenger: { eye: new THREE.Vector3(0.36, 1.175, 0.2), exit: new THREE.Vector3(1.45, 0.2, 0.05), door: 'frontDoor_R', seat: 'seat_FR' },
 };
 /** Service points in car space. */
 export const SERVICE = {
