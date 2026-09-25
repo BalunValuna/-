@@ -25,6 +25,12 @@ export class DebugMaterials {
           gl_FragColor = vec4(vec3(l), 1.0);
         }`,
     });
+    // Double-sided materials show their back faces on purpose: shade them grey instead of green.
+    this.defectsTwoSided = this.defects.clone();
+    this.defectsTwoSided.fragmentShader = this.defects.fragmentShader.replace(
+      'if (!gl_FrontFacing) { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); return; }',
+      'if (!gl_FrontFacing) { gl_FragColor = vec4(vec3(0.3), 1.0); return; }',
+    );
     this.normals = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
     this.wire = new THREE.MeshBasicMaterial({ color: 0x9fd3ff, wireframe: true });
     // Glass is solid in defect mode, otherwise the background behind it would read as a hole.
@@ -36,7 +42,10 @@ export class DebugMaterials {
       if (!o.isMesh) return;
       if (!this.saved.has(o)) this.saved.set(o, o.material);
       if (!mode || mode === 'none') o.material = this.saved.get(o);
-      else if (mode === 'defects') o.material = o.userData.glass ? this.glass : this.defects;
+      else if (mode === 'defects') {
+        const orig = this.saved.get(o);
+        o.material = o.userData.glass ? this.glass : orig.side === THREE.DoubleSide ? this.defectsTwoSided : this.defects;
+      }
       else if (mode === 'normals') o.material = this.normals;
       else if (mode === 'wire') o.material = this.wire;
     });

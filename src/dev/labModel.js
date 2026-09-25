@@ -37,6 +37,16 @@ export function buildLabModel() {
     setState,
     showOnly,
     showAll: () => Object.values(groups).forEach((g) => (g.visible = true)),
-    stats: () => car.stats,
+    stats: () => {
+      const perPart = {};
+      for (const [id, g] of Object.entries(groups)) {
+        let t = 0;
+        g.traverse((o) => {
+          if (o.isMesh) t += (o.geometry.index ? o.geometry.index.count : o.geometry.getAttribute('position').count) / 3;
+        });
+        perPart[id] = Math.round(t);
+      }
+      return { ...car.stats, perPart };
+    },
   };
 }

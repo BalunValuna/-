@@ -89,19 +89,19 @@ export function buildBody(mats) {
   {
     // body shell: paint on top, underbody coating on the downward-facing underside
     const g = group('body');
-    const { outer, inner } = hemPanel(skins.body, { roll: ROLL, depth: 0.02, thickness: 0.0012 });
+    // The shell is rendered double sided instead of carrying a duplicated inner skin.
+    const { outer } = hemPanel(skins.body, { roll: ROLL, depth: 0.02, thickness: 0 });
     const N = outer.normals;
     const idx = outer.indices;
     const split = outer.partition((x, y, z, t) => {
       const ny = (N[idx[t * 3] * 3 + 1] + N[idx[t * 3 + 1] * 3 + 1] + N[idx[t * 3 + 2] * 3 + 1]) / 3;
       return y < 0.3 && ny < -0.55 ? 'under' : 'paint';
     });
-    add(g, split.get('paint'), mats.paint, 'body');
+    add(g, split.get('paint'), mats.paintShell, 'body');
     add(g, split.get('under'), mats.underbody, 'underbody');
-    add(g, inner, mats.paintInner, 'body_inner');
     parts.body = g;
   }
-  panel('liner', mats.blackPlastic, { depth: 0.012, thickness: 0.002 }, mats.blackPlastic);
+  panel('liner', mats.linerPlastic, { depth: 0.012, thickness: 0 });
   panel('cowl', mats.blackPlastic, { depth: 0.02, thickness: 0.002 }, mats.blackPlastic);
   panel('frontBumper', mats.paint, { depth: 0.03, thickness: 0.003 }, mats.blackPlastic);
   panel('rearBumper', mats.paint, { depth: 0.03, thickness: 0.003 }, mats.blackPlastic);

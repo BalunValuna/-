@@ -25,7 +25,7 @@ export const SIDES = [
  * seam is defined exactly once, and both neighbours are trimmed back by the same amount.
  * @returns {{ skins: Record<string, MeshData>, cellMs: number }}
  */
-export function cutSkin({ cell = 0.018 } = {}) {
+export function cutSkin({ cell = 0.024 } = {}) {
   const t0 = performance.now();
   const skin = surfaceNets(bodyField, { ...BODY_BOUNDS, cell });
   const cellMs = performance.now() - t0;

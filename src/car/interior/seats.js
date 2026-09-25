@@ -41,7 +41,7 @@ function backField(x, u, w) {
 export function buildFrontSeatGeometry(mats) {
   const g = new THREE.Group();
   g.name = 'seat';
-  const cushion = surfaceNets(cushionField, { min: [-0.3, 0.33, -0.3], max: [0.3, 0.6, 0.3], cell: 0.009 });
+  const cushion = surfaceNets(cushionField, { min: [-0.3, 0.33, -0.3], max: [0.3, 0.6, 0.3], cell: 0.012 });
   const cParts = cushion.partition((x, y) => (Math.abs(x) < 0.15 && y > CUSHION_Y + 0.07 ? 'insert' : 'side'));
   g.add(mesh(cParts.get('side').toGeometry(), mats.fabric, { name: 'cushion' }));
   if (cParts.get('insert')) g.add(mesh(cParts.get('insert').toGeometry(), mats.fabricInsert, { name: 'cushionInsert' }));
@@ -51,12 +51,12 @@ export function buildFrontSeatGeometry(mats) {
   back.name = 'backrest';
   back.position.set(0, CUSHION_Y + 0.07, 0.24);
   back.rotation.x = FRONT_SEAT.recline;
-  const backMesh = surfaceNets((x, y, z) => backField(x, y, -z), { min: [-0.3, -0.02, -0.12], max: [0.3, 0.7, 0.12], cell: 0.009 });
+  const backMesh = surfaceNets((x, y, z) => backField(x, y, -z), { min: [-0.3, -0.02, -0.12], max: [0.3, 0.7, 0.12], cell: 0.012 });
   const bParts = backMesh.partition((x, y, z) => (Math.abs(x) < 0.15 && z < -0.05 && y > 0.08 && y < 0.58 ? 'insert' : 'side'));
   back.add(mesh(bParts.get('side').toGeometry(), mats.fabric, { name: 'back' }));
   if (bParts.get('insert')) back.add(mesh(bParts.get('insert').toGeometry(), mats.fabricInsert, { name: 'backInsert' }));
   // headrest on two posts
-  const hr = surfaceNets((x, y, z) => sdRoundBox(x, y - 0.8, z - 0.005, 0.125, 0.085, 0.05, 0.04), { min: [-0.15, 0.7, -0.07], max: [0.15, 0.9, 0.07], cell: 0.008 });
+  const hr = surfaceNets((x, y, z) => sdRoundBox(x, y - 0.8, z - 0.005, 0.125, 0.085, 0.05, 0.04), { min: [-0.15, 0.7, -0.07], max: [0.15, 0.9, 0.07], cell: 0.011 });
   back.add(mesh(hr.toGeometry(), mats.fabric, { name: 'headrest' }));
   for (const s of [-1, 1]) {
     const post = mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 8), mats.chrome, { name: 'headrestPost' });
@@ -111,7 +111,7 @@ export function buildRearBench(mats) {
     for (const s of [-1, 1]) d = smax(d, -(Math.hypot((x - s * 0.34) / 1.8, (y - cy - 0.21) * 1.4, lz / 1.5) - 0.1), 0.04);
     return d;
   };
-  const cm = surfaceNets(cushion, { min: [-0.7, cy - 0.03, REAR_SEAT.z - 0.26], max: [0.7, cy + 0.17, REAR_SEAT.z + 0.26], cell: 0.011 });
+  const cm = surfaceNets(cushion, { min: [-0.7, cy - 0.03, REAR_SEAT.z - 0.26], max: [0.7, cy + 0.17, REAR_SEAT.z + 0.26], cell: 0.014 });
   g.add(mesh(cm.toGeometry(), mats.fabric, { name: 'rearCushion' }));
   const back = new THREE.Group();
   back.name = 'rearBack';
@@ -122,10 +122,10 @@ export function buildRearBench(mats) {
     for (const s of [-1, 1]) d = smin(d, sdRoundBox(x - s * 0.34, u - 0.24, w - 0.02, 0.2, 0.18, 0.03, 0.03), 0.05);
     return d;
   };
-  const bm = surfaceNets((x, y, z) => bf(x, y, -z), { min: [-0.7, -0.02, -0.08], max: [0.7, 0.58, 0.1], cell: 0.011 });
+  const bm = surfaceNets((x, y, z) => bf(x, y, -z), { min: [-0.7, -0.02, -0.08], max: [0.7, 0.58, 0.1], cell: 0.014 });
   back.add(mesh(bm.toGeometry(), mats.fabric, { name: 'rearBackrest' }));
   for (const s of [-1, 1]) {
-    const hr = surfaceNets((x, y, z) => sdRoundBox(x, y, z, 0.11, 0.06, 0.045, 0.035), { min: [-0.13, -0.08, -0.06], max: [0.13, 0.08, 0.06], cell: 0.008 });
+    const hr = surfaceNets((x, y, z) => sdRoundBox(x, y, z, 0.11, 0.06, 0.045, 0.035), { min: [-0.13, -0.08, -0.06], max: [0.13, 0.08, 0.06], cell: 0.011 });
     const h = mesh(hr.toGeometry(), mats.fabric, { name: 'rearHeadrest' });
     h.position.set(s * 0.34, 0.6, 0.0);
     back.add(h);

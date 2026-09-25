@@ -106,5 +106,10 @@ export function carMaterials(paintColor = 0x8a1c22) {
     roughness: 0.55,
     name: 'paintInner',
   });
-  return { ...shared, paint, paintInner };
+  // Shell and liners are drawn double sided so their hidden inner faces never read as holes.
+  const paintShell = paint.clone();
+  paintShell.side = THREE.DoubleSide;
+  const linerPlastic = shared.blackPlastic.clone();
+  linerPlastic.side = THREE.DoubleSide;
+  return { ...shared, paint, paintInner, paintShell, linerPlastic };
 }

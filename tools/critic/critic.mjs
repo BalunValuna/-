@@ -75,6 +75,13 @@ const lines = [
   ...results.map((r) => `| ${r.view} | ${r.green} | ${r.greenPct} | ${r.holes} | ${r.greenPct > GREEN_LIMIT || r.holes > HOLE_LIMIT ? 'FAIL' : 'ok'} |`),
   '',
   'Images: sheet.png (look views), defects.png (red = inside of a skin visible, magenta = see-through).',
+  '',
+  '## Triangle budget (top parts)',
+  '',
+  ...Object.entries(stats.perPart || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 14)
+    .map(([id, t]) => `- ${id}: ${t}`),
 ];
 if (logs.length) lines.push('', '## Console', '', ...logs.slice(0, 30).map((l) => `    ${l}`));
 writeFileSync(join(out, 'report.md'), lines.join('\n'));

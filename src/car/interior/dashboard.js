@@ -58,7 +58,7 @@ export function buildDashboard(mats) {
   g.name = 'dashboard';
   const controls = { needles: {} };
   const t0 = performance.now();
-  const raw = surfaceNets(dashField, { min: [-0.8, 0.3, -1.05], max: [0.8, 1.12, -0.36], cell: 0.011 });
+  const raw = surfaceNets(dashField, { min: [-0.8, 0.3, -1.05], max: [0.8, 1.12, -0.36], cell: 0.014 });
   // glovebox lid is cut out of the dash face with a small gap
   const lidSkin = clipMesh(raw, (x, y, z) => Math.max(GLOVE(x, y, z) + 0.002, z + 0.72));
   const dashSkin = clipMesh(raw, (x, y, z) => Math.min(0.002 - GLOVE(x, y, z), -0.72 - z));

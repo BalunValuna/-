@@ -29,14 +29,14 @@ export function buildWheel(mats, { spokes = 5 } = {}) {
     [0.306, 0.084],
     [R - 0.0005, 0.074],
   ];
-  const outerWall = latheX(sidewall.map(([r, a]) => [r, a]).reverse(), 72);
-  const innerWall = latheX(sidewall.map(([r, a]) => [r, -a]), 72);
+  const outerWall = latheX(sidewall.map(([r, a]) => [r, a]).reverse(), 56);
+  const innerWall = latheX(sidewall.map(([r, a]) => [r, -a]), 40);
   const treadProfile = [[R - 0.0005, -0.074]];
   for (const gz of [-0.042, -0.013, 0.016, 0.045]) {
     treadProfile.push([R, gz - 0.006], [R - 0.008, gz - 0.004], [R - 0.008, gz + 0.004], [R, gz + 0.006]);
   }
   treadProfile.push([R - 0.0005, 0.074]);
-  const tread = latheX(treadProfile, 96);
+  const tread = latheX(treadProfile, 64);
   spin.add(mesh(outerWall, mats.rubber, { name: 'tyreWall' }));
   spin.add(mesh(innerWall, mats.rubber, { name: 'tyreWall' }));
   spin.add(mesh(tread, mats.tread, { name: 'tyreTread' }));
@@ -88,8 +88,8 @@ export function buildWheel(mats, { spokes = 5 } = {}) {
     bevelEnabled: true,
     bevelThickness: 0.004,
     bevelSize: 0.003,
-    bevelSegments: 2,
-    curveSegments: 20,
+    bevelSegments: 1,
+    curveSegments: 10,
   });
   face.rotateY(Math.PI / 2); // extrusion +Z → +X
   const pos = face.getAttribute('position');

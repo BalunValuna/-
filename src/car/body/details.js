@@ -204,7 +204,7 @@ export function buildDetails(mats) {
     },
     [-0.03, finBase.y - 0.01, finBase.z - 0.11],
     [0.03, finBase.y + 0.08, finBase.z + 0.11],
-    0.004,
+    0.006,
   );
   top.add(mesh(fin, mats.glossBlack, { name: 'antenna' }));
 
@@ -223,7 +223,7 @@ export function buildDoorDetails(mats, door, side) {
       (x, y, z) => sdRoundBox(z, y, x, 0.082, 0.013, 0.014, 0.012),
       [-0.03, -0.02, -0.095],
       [0.03, 0.02, 0.095],
-      0.003,
+      0.005,
     );
     const hm = mesh(handle, mats.paint, { name: 'doorHandle' });
     hm.position.copy(hp).addScaledVector(bodyNormal(hp), 0.009);
@@ -267,7 +267,7 @@ function buildMirror(mats, side) {
     const d = sdRoundBox(x - 0.1, y, (z + 0.01) / taper, 0.1, 0.058 * taper, 0.05, 0.034);
     return Math.max(d, z - 0.036);
   };
-  const geo = meshFromField(housing, [-0.01, -0.07, -0.08], [0.215, 0.07, 0.045], 0.0045);
+  const geo = meshFromField(housing, [-0.01, -0.07, -0.08], [0.215, 0.07, 0.045], 0.0075);
   const cap = mesh(geo, mats.paint, { name: 'mirrorHousing' });
   const glassShape = new THREE.Shape();
   const w = 0.088;

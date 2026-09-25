@@ -104,7 +104,7 @@ export function buildCabin(mats) {
     for (const s of [-1, 1]) d = Math.max(d, -(Math.hypot(x - s * 0.045, z + 0.02) - 0.036) + Math.max(0, 0.5 - y) * 10 - 0.001);
     return Math.max(d, 0.32 - y);
   };
-  const cons = surfaceNets(consoleField, { min: [-0.14, 0.3, -0.48], max: [0.14, 0.64, 0.48], cell: 0.009 });
+  const cons = surfaceNets(consoleField, { min: [-0.14, 0.3, -0.48], max: [0.14, 0.64, 0.48], cell: 0.012 });
   add(cons.toGeometry(), mats.trimPlastic, 'console');
   const boot = add(latheY([[0.045, 0], [0.05, 0.03], [0.035, 0.07], [0.012, 0.1]], 16), mats.leather, 'shiftBoot');
   boot.position.set(0, 0.52, -0.2);
@@ -252,7 +252,7 @@ function buildDoorCard(mats, door, side) {
   };
   const x0 = side > 0 ? 0.62 : -0.8;
   const x1 = side > 0 ? 0.8 : -0.62;
-  const card = surfaceNets(cardField, { min: [x0, 0.28, zMin - 0.05], max: [x1, 1.1, zMax + 0.05], cell: 0.01 });
+  const card = surfaceNets(cardField, { min: [x0, 0.28, zMin - 0.05], max: [x1, 1.1, zMax + 0.05], cell: 0.014 });
   const split = card.partition((x, y) => (y > 0.74 ? 'upper' : 'lower'));
   if (split.get('upper')) g.add(mesh(split.get('upper').toGeometry(), mats.dashPlastic, { name: 'doorCardUpper' }));
   if (split.get('lower')) g.add(mesh(split.get('lower').toGeometry(), mats.trimPlastic, { name: 'doorCardLower' }));
