@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.hoplite/*
+!.hoplite/settings.json
+*.log
+.DS_Store
+/tmp/

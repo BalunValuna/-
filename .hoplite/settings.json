@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "scripts": {
+    "setup": "npm install --no-audit --no-fund",
+    "run": "npm run dev"
+  },
+  "ports": {
+    "preview": 5173
+  }
+}

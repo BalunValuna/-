@@ -1,0 +1,35 @@
+// Numeric rollover battery: no screenshots, just telemetry from the real vehicle simulation.
+await start();
+game.dev.readyCar();
+await seat();
+const car = game.car;
+const results = [];
+const traces = {};
+const run = async (name, { z = 3000, lane = 1.8, kmh, wet = 0, plan, seconds = 8, trace = false }) => {
+  game.dev.carOnRoad(z, lane);
+  game.env.cur.wet = wet;
+  game.dev.simulate(1.5, {});
+  game.dev.simulate(60, game.dev.follow(kmh + 3, lane), { until: (c) => c.speedKmh() >= kmh });
+  const startKmh = car.speedKmh();
+  let maxRoll = 0, minUp = 1, maxSkid = 0;
+  const samples = game.dev.simulate(seconds, plan, { sampleEvery: 0.05, onSample: (s) => { maxRoll = Math.max(maxRoll, Math.abs(s.roll)); minUp = Math.min(minUp, s.upY); maxSkid = Math.max(maxSkid, s.skid); } });
+  const end = samples[samples.length - 1];
+  results.push({ name, startKmh: round(startKmh, 0), maxRoll: round(maxRoll, 1), minUpY: round(minUp, 2), flipped: minUp < 0.3, maxSkid: round(maxSkid, 2), endKmh: end.kmh, maxOff: Math.max(...samples.map((s) => s.offRoad)) });
+  if (trace || minUp < 0.3) traces[name] = samples.filter((_, i) => i % 4 === 0).map((s) => `${s.t} v${s.kmh} r${s.roll} st${s.steer} sk${s.skid} yr${s.yawRate} off${s.offRoad} ${s.surf} [${s.load.join(',')}]`);
+  game.env.cur.wet = 0;
+};
+const hold = (steer) => () => ({ steer });
+const swerve = (amp, period) => (t) => ({ steer: t < period ? amp : t < period * 2 ? -amp : t < period * 3 ? amp * 0.5 : 0 });
+await run('cruise 90 follow', { kmh: 90, plan: game.dev.follow(90), seconds: 20 });
+await run('turn 0.5 @60', { kmh: 60, plan: hold(0.5) });
+await run('full lock @60', { kmh: 60, plan: hold(1) });
+await run('full lock @100', { kmh: 100, plan: hold(1) });
+await run('lane change 0.35 @110', { kmh: 110, plan: swerve(0.35, 0.8) });
+await run('lane change 0.2 @120', { kmh: 120, plan: swerve(0.2, 0.9) });
+await run('tap left 0.15s @110', { kmh: 110, plan: (t) => ({ steer: t < 0.15 ? -1 : 0 }) });
+await run('hold left 1s @110', { kmh: 110, plan: (t) => ({ steer: t < 1 ? -1 : 0 }) });
+await run('swerve @100', { kmh: 100, plan: swerve(1, 0.7) });
+await run('swerve @130', { kmh: 130, plan: swerve(1, 0.7) });
+await run('wet full lock @100', { kmh: 100, wet: 1, plan: hold(1) });
+await run('wet swerve @120', { kmh: 120, wet: 1, plan: swerve(1, 0.7) });
+return { results, traces };
